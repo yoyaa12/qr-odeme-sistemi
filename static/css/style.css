@@ -149,7 +149,7 @@ input:focus, select:focus, textarea:focus {
 .container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 20px 16px;
+    padding: 20px 16px 110px 16px;
     width: 100%;
     flex: 1;
 }
@@ -711,4 +711,33 @@ input:focus, select:focus, textarea:focus {
     .size-options-grid {
         grid-template-columns: 1fr;
     }
+}
+
+/* PAY CARD OPTIONS */
+.pay-card-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1.5px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.pay-card-item:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(245, 158, 11, 0.4);
+}
+
+.pay-card-item.active {
+    border-color: var(--success);
+    background: rgba(16, 185, 129, 0.12);
+}
+
+.pay-check-icon {
+    color: var(--success);
+    font-size: 1.2rem;
+    font-weight: 900;
 }

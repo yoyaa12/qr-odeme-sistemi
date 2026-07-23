@@ -25,8 +25,13 @@ function playWaiterBellSound() {
 document.addEventListener('DOMContentLoaded', () => {
     loadWaiterData();
 
-    // Socket.io Canlı Bağlantı
-    const socket = io();
+    // Socket.io Canlı Bağlantı (Otomatik Reconnection Ayarları)
+    const socket = io({
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000
+    });
 
     socket.on('connect', () => {
         updateWaiterSocketBadge(true);
@@ -52,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadWaiterData();
     });
 
+    socket.on('nakit_odendi', () => loadWaiterData());
     socket.on('yeni_siparis', () => loadWaiterData());
     socket.on('masa_durumu_degisti', () => loadWaiterData());
 });

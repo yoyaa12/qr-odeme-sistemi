@@ -242,6 +242,26 @@ async def get_siparisler(durum: Optional[str] = None, masa_id: Optional[int] = N
     return siparisler
 
 
+# 5.5 MASANIN AKTİF SİPARİŞİNİ ALMA (F5 KORUMASI İÇİN)
+@app.get("/api/masalar/{masa_id}/aktif-siparis")
+async def get_masa_aktif_siparis(masa_id: int):
+    query = """
+        SELECT TOP 1 s.*, m.masa_no 
+        FROM Siparisler s 
+        JOIN Masalar m ON s.masa_id = m.id 
+        WHERE s.masa_id = ? AND s.siparis_durumu != 'teslim_edildi' 
+        ORDER BY s.id DESC
+    """
+    siparis = execute_query(query, (masa_id,), fetch_one=True)
+    if siparis:
+        d_query = "SELECT sd.*, u.urun_adi FROM SiparisDetaylari sd JOIN Urunler u ON sd.urun_id = u.id WHERE sd.siparis_id = ?"
+        siparis['detaylar'] = execute_query(d_query, (siparis['id'],)) or []
+        if isinstance(siparis.get('olusturma_tarihi'), datetime.datetime):
+            siparis['olusturma_tarihi'] = siparis['olusturma_tarihi'].strftime("%H:%M:%S")
+        return {"has_active": True, "siparis": siparis}
+    return {"has_active": False, "siparis": None}
+
+
 # 6. SİPARİŞ DURUMU GÜNCELLEME
 @app.patch("/api/siparisler/{siparis_id}/durum")
 async def update_siparis_durumu(siparis_id: int, data: DurumGuncelleModel):
@@ -272,11 +292,14 @@ async def update_siparis_durumu(siparis_id: int, data: DurumGuncelleModel):
         "masa_id": s_info['masa_id'],
         "masa_no": s_info['masa_no'],
         "yeni_durum": yeni_durum,
+        "odeme_durumu": "odendi" if data.yeni_durum == "nakit_tahsil_edildi" else s_info.get("odeme_durumu", "odendi"),
         "garson_adi": data.garson_adi or "Garson",
         "guncelleme_tarihi": datetime.datetime.now().strftime("%H:%M:%S")
     }
 
     await sio.emit("durum_guncellendi", event_payload)
+    if data.yeni_durum == "nakit_tahsil_edildi":
+        await sio.emit("nakit_odendi", event_payload)
 
     return {"status": "success", "message": f"Sipariş güncellendi.", "data": event_payload}
 

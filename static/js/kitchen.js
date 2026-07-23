@@ -39,7 +39,12 @@ document.addEventListener('DOMContentLoaded', () => {
     loadKitchenOrders();
 
     // Socket.io Canlı Bağlantı & Gerçek Bağlantı Kontrolü
-    const socket = io();
+    const socket = io({
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000
+    });
 
     socket.on('connect', () => {
         updateKitchenSocketBadge(true);

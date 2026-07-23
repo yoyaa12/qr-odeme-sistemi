@@ -11,12 +11,36 @@ DB_USER = os.getenv("DB_USER", "")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 DB_TRUSTED = os.getenv("DB_TRUSTED_CONNECTION", "yes").lower() in ("yes", "true", "1")
 
+_cached_conn_params = None
+
 def get_db_connection():
     """
-    MS SQL Server 2022 veritabanına bağlanır.
+    MS SQL Server 2022 veritabanına bağlanır (Performans için önbellekli).
     """
+    global _cached_conn_params
     errors = []
-    
+
+    # 1. Önceden başarıyla çalışan parametre varsa hızlıca bağlan
+    if _cached_conn_params:
+        try:
+            c_type, srv, driver = _cached_conn_params
+            if c_type == 'pyodbc':
+                if DB_TRUSTED or not DB_USER:
+                    conn_str = f"DRIVER={{{driver}}};SERVER={srv};DATABASE={DB_NAME};Trusted_Connection=yes;TrustServerCertificate=yes;"
+                else:
+                    conn_str = f"DRIVER={{{driver}}};SERVER={srv};DATABASE={DB_NAME};UID={DB_USER};PWD={DB_PASSWORD};TrustServerCertificate=yes;"
+                conn = pyodbc.connect(conn_str, autocommit=True, timeout=2)
+                return conn, f"pyodbc ({srv})"
+            elif c_type == 'pymssql':
+                if DB_USER and DB_PASSWORD:
+                    conn = pymssql.connect(server=srv, user=DB_USER, password=DB_PASSWORD, database=DB_NAME, autocommit=True, login_timeout=2)
+                else:
+                    conn = pymssql.connect(server=srv, database=DB_NAME, autocommit=True, login_timeout=2)
+                return conn, f"pymssql ({srv})"
+        except Exception:
+            _cached_conn_params = None # Bağlantı koptuysa önbelleği sıfırla
+
+    # 2. Önbellek yoksa veya sıfırlandıysa adayları hızlıca tara
     server_candidates = [DB_SERVER]
     for alt in [r".\SQLEXPRESS", ".", "localhost", r"LOCALHOST\SQLEXPRESS", "127.0.0.1"]:
         if alt not in server_candidates:
@@ -41,7 +65,8 @@ def get_db_connection():
                 else:
                     conn_str = f"DRIVER={{{driver}}};SERVER={srv};DATABASE={DB_NAME};UID={DB_USER};PWD={DB_PASSWORD};TrustServerCertificate=yes;"
                 
-                conn = pyodbc.connect(conn_str, autocommit=True, timeout=3)
+                conn = pyodbc.connect(conn_str, autocommit=True, timeout=2)
+                _cached_conn_params = ('pyodbc', srv, driver)
                 return conn, f"pyodbc ({srv})"
             except Exception as e:
                 errors.append(f"pyodbc ({srv} / {driver}): {str(e)}")
@@ -49,9 +74,10 @@ def get_db_connection():
     for srv in server_candidates:
         try:
             if DB_USER and DB_PASSWORD:
-                conn = pymssql.connect(server=srv, user=DB_USER, password=DB_PASSWORD, database=DB_NAME, autocommit=True, login_timeout=3)
+                conn = pymssql.connect(server=srv, user=DB_USER, password=DB_PASSWORD, database=DB_NAME, autocommit=True, login_timeout=2)
             else:
-                conn = pymssql.connect(server=srv, database=DB_NAME, autocommit=True, login_timeout=3)
+                conn = pymssql.connect(server=srv, database=DB_NAME, autocommit=True, login_timeout=2)
+            _cached_conn_params = ('pymssql', srv, None)
             return conn, f"pymssql ({srv})"
         except Exception as e:
             errors.append(f"pymssql ({srv}): {str(e)}")

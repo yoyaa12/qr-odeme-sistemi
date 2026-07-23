@@ -14,6 +14,7 @@ let state = {
     selectedExtras: [],
     activeNotes: [],
     currentOrder: null,
+    selectedCard: "Garanti BBVA Bonus (**** 4821)",
     language: localStorage.getItem('qr_language') || null
 };
 
@@ -99,17 +100,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadCategories();
     loadProducts();
+    checkActiveOrder(); // F5 RECOVERY
 
-    // Socket.io Canlı Dinleyici
-    const socket = io();
+    // Socket.io Canlı Dinleyici (Otomatik Reconnection Ayarları)
+    const socket = io({
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000
+    });
+
     socket.on('durum_guncellendi', (data) => {
         if (data.masa_id === state.masaId && state.currentOrder) {
             state.currentOrder.siparis_durumu = data.yeni_durum;
+            if (data.odeme_durumu) state.currentOrder.odeme_durumu = data.odeme_durumu;
             renderOrderTrackingUI();
             playNotificationSound();
         }
     });
+
+    socket.on('nakit_odendi', (data) => {
+        if (data.masa_id === state.masaId && state.currentOrder) {
+            state.currentOrder.odeme_durumu = 'odendi';
+            renderOrderTrackingUI();
+            playNotificationSound();
+            showToast("💵 Garson nakit ödemenizi tahsil etti. Teşekkürler!");
+        }
+    });
 });
+
+async function checkActiveOrder() {
+    try {
+        const res = await fetch(`/api/masalar/${state.masaId}/aktif-siparis`);
+        const data = await res.json();
+        if (data.has_active && data.siparis) {
+            state.currentOrder = data.siparis;
+            renderOrderTrackingUI();
+        }
+    } catch (e) {
+        console.error("Aktif sipariş yüklenemedi:", e);
+    }
+}
 
 function selectLanguage(lang) {
     state.language = lang;
@@ -481,8 +512,51 @@ function removeCartItem(index) {
 async function submitOrder(odemeYontemi) {
     if (state.cart.length === 0) return;
 
-    closeModal('cartModal');
+    if (odemeYontemi === 'pos') {
+        // Doğrudan sipariş vermek yerine 2. Onay & Kart Seçim Modali Aç!
+        closeModal('cartModal');
+        openPayModal();
+        return;
+    }
 
+    // Masada Nakit Öde seçeneği ise doğrudan siparişi gönder
+    closeModal('cartModal');
+    await executeOrderSubmit('nakit');
+}
+
+function openPayModal() {
+    const totalAmount = state.cart.reduce((acc, item) => acc + item.ara_toplam, 0);
+    const totalCount = state.cart.reduce((acc, item) => acc + item.adet, 0);
+
+    const payModalAmount = document.getElementById('payModalAmount');
+    const payModalItemCount = document.getElementById('payModalItemCount');
+
+    if (payModalAmount) payModalAmount.innerText = `${totalAmount.toFixed(2)} ₺`;
+    if (payModalItemCount) payModalItemCount.innerText = `${totalCount} adet ürün sepette`;
+
+    document.getElementById('payModal').classList.add('active');
+}
+
+function selectPayCard(element, cardName) {
+    document.querySelectorAll('.pay-card-item').forEach(el => {
+        el.classList.remove('active');
+        const check = el.querySelector('.pay-check-icon');
+        if (check) check.style.display = 'none';
+    });
+
+    element.classList.add('active');
+    const checkIcon = element.querySelector('.pay-check-icon');
+    if (checkIcon) checkIcon.style.display = 'block';
+
+    state.selectedCard = cardName;
+}
+
+async function confirmPaymentAndSubmit() {
+    closeModal('payModal');
+    await executeOrderSubmit('pos');
+}
+
+async function executeOrderSubmit(odemeYontemi) {
     const totalPrice = state.cart.reduce((acc, item) => acc + item.ara_toplam, 0);
 
     const payload = {
@@ -511,9 +585,14 @@ async function submitOrder(odemeYontemi) {
             state.currentOrder = data.siparis;
             updateCartUI();
             
-            // Sipariş Takip Ekranına Geç (Sayfa Yenilenmeden Canlı İlerler)
             renderOrderTrackingUI();
             playNotificationSound();
+
+            if (odemeYontemi === 'pos') {
+                showToast(`💳 ${state.selectedCard || 'Kart'} ile ödeme onaylandı ve sipariş alındı!`);
+            } else {
+                showToast("💵 Masada nakit ödeme talebiniz iletildi!");
+            }
         } else {
             alert(data.detail || "Hata oluştu.");
         }
@@ -522,20 +601,22 @@ async function submitOrder(odemeYontemi) {
     }
 }
 
-// CANLI SİPARİŞ TAKİP EKRANI (TEK VE NET DURUM KARTI)
+// CANLI SİPARİŞ TAKİP EKRANI (NET CANLI DURUM & VERİLEN SİPARİŞ LİSTESİ)
 function renderOrderTrackingUI() {
     const container = document.getElementById('orderTrackingContainer');
     if (!container || !state.currentOrder) return;
 
     const status = state.currentOrder.siparis_durumu;
+    const isCashPending = state.currentOrder.odeme_yontemi === 'nakit' && state.currentOrder.odeme_durumu !== 'odendi';
     
-    // Teslim edildi ise şık kapatılabilir kart göster
+    container.style.display = 'block';
+
+    // Teslim edildi durumu
     if (status === 'teslim_edildi') {
-        container.style.display = 'block';
         container.innerHTML = `
             <div class="tracking-card" style="border-color: var(--success); background: rgba(16, 185, 129, 0.1);">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
-                    <h3 style="font-size: 1.15rem; color: var(--success);">🎉 Masaya Teslim Edildi</h3>
+                    <h3 style="font-size: 1.15rem; color: var(--success);">🎉 Masanıza Teslim Edildi</h3>
                     <button style="background:none; color:var(--text-secondary); font-size:0.85rem; cursor:pointer;" onclick="dismissTrackingUI()">Kapat ✖</button>
                 </div>
                 <div style="font-size: 0.88rem; color: var(--text-secondary);">Afiyet olsun! Bizi tercih ettiğiniz için teşekkür ederiz.</div>
@@ -543,28 +624,38 @@ function renderOrderTrackingUI() {
         `;
         return;
     }
-
-    container.style.display = 'block';
     
     let currentStatusHTML = '';
 
     if (status === 'odendi_mutfakta') {
-        currentStatusHTML = `
-            <div class="single-status-banner active-step-received">
-                <div class="status-icon-large">✅</div>
-                <div class="status-info">
-                    <div class="status-title-main">Siparişiniz Alındı</div>
-                    <div class="status-sub-desc">${state.currentOrder.odeme_yontemi === 'nakit' ? 'Masada Garsona Nakit Ödeme Talebi Olusturuldu' : 'Ödemeniz Onaylandı'} • Mutfak onayına sunuldu.</div>
+        if (isCashPending) {
+            currentStatusHTML = `
+                <div class="single-status-banner active-step-received" style="border-color: #fbbf24; background: rgba(245, 158, 11, 0.15);">
+                    <div class="status-icon-large">💵</div>
+                    <div class="status-info">
+                        <div class="status-title-main" style="color:#fbbf24;">Garson Bekleniyor (Nakit Ödeme)</div>
+                        <div class="status-sub-desc">Siparişiniz alındı mutfağa iletildi. Garson masanızdan nakit tahsilatı yapmak üzere geliyor.</div>
+                    </div>
                 </div>
-            </div>
-        `;
+            `;
+        } else {
+            currentStatusHTML = `
+                <div class="single-status-banner active-step-received">
+                    <div class="status-icon-large">✅</div>
+                    <div class="status-info">
+                        <div class="status-title-main">Siparişiniz Alındı</div>
+                        <div class="status-sub-desc">Ödemeniz Onaylandı • Mutfak onayına sunuldu.</div>
+                    </div>
+                </div>
+            `;
+        }
     } else if (status === 'hazirlaniyor') {
         currentStatusHTML = `
             <div class="single-status-banner active-step-preparing">
                 <div class="status-icon-large">👨‍🍳</div>
                 <div class="status-info">
                     <div class="status-title-main">Mutfakta Hazırlanıyor</div>
-                    <div class="status-sub-desc">Tahmini Hazırlanma Süresi: <strong style="color:#fbbf24;">~12 - 15 dk</strong></div>
+                    <div class="status-sub-desc">Şeflerimiz siparişinizi hazırlıyor. Tahmini süre: <strong style="color:#fbbf24;">~10 - 15 dk</strong></div>
                 </div>
             </div>
         `;
@@ -573,20 +664,57 @@ function renderOrderTrackingUI() {
             <div class="single-status-banner active-step-ready">
                 <div class="status-icon-large">🔔</div>
                 <div class="status-info">
-                    <div class="status-title-main">Siparişiniz Hazır!</div>
-                    <div class="status-sub-desc">Garson yemeğinizi masanıza getirmek üzere yola çıktı.</div>
+                    <div class="status-title-main">Yemeğiniz Hazır!</div>
+                    <div class="status-sub-desc">Garson siparişinizi masanıza getirmek üzere servis tepsisine aldı.</div>
                 </div>
             </div>
         `;
     }
 
+    // ÜRÜN DETAYLARI LİSTESİ (MÜŞTERİ NE SİPARİŞ ETTİĞİNİ GÖREBİLİR)
+    let detailsHTML = '';
+    const detaylar = state.currentOrder.detaylar || [];
+    detaylar.forEach(item => {
+        detailsHTML += `
+            <div class="order-item-row" style="padding: 6px 0;">
+                <div class="order-item-main" style="font-size: 0.95rem;">
+                    <span>${item.adet}x ${item.urun_adi}</span>
+                    <span>${(item.ara_toplam || (item.adet * item.birim_fiyat)).toFixed(2)} ₺</span>
+                </div>
+                ${item.urun_notu ? `<div class="order-item-note" style="font-size: 0.78rem;">${item.urun_notu}</div>` : ''}
+            </div>
+        `;
+    });
+
+    const paymentBadge = isCashPending
+        ? `<span class="table-badge" style="background: #d97706;">💵 Masada Nakit (Bekliyor)</span>`
+        : `<span class="table-badge" style="background: var(--success);">💳 Ödendi / Onaylı</span>`;
+
     let html = `
         <div class="tracking-card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
-                <span style="font-size: 0.8rem; font-weight:800; color: var(--primary); letter-spacing: 0.5px;">🚀 CANLI SİPARİŞ DURUMU</span>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+                <span style="font-size: 0.8rem; font-weight:800; color: var(--primary); letter-spacing: 0.5px;">🚀 CANLI SİPARİŞ TAKİBİ (${state.currentOrder.siparis_kodu || ''})</span>
                 <span class="table-badge">🪑 ${state.masaNo}</span>
             </div>
+            
             ${currentStatusHTML}
+
+            <!-- VERİLEN SİPARİŞİN İÇERİĞİ -->
+            <div style="margin-top: 16px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;">
+                    <span style="font-size: 0.88rem; font-weight: 700; color: var(--text-primary);">🛒 Verilen Sipariş Detayı:</span>
+                    ${paymentBadge}
+                </div>
+                
+                <div style="max-height: 200px; overflow-y: auto;">
+                    ${detailsHTML}
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px; font-weight: 800;">
+                    <span>Toplam Tutar:</span>
+                    <span style="color: #fbbf24; font-size: 1.15rem;">${(state.currentOrder.toplam_tutar || 0).toFixed(2)} ₺</span>
+                </div>
+            </div>
         </div>
     `;
 
