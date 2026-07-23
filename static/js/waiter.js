@@ -85,7 +85,7 @@ async function loadWaiterData() {
         const allOrders = await ordersRes.json();
         tables = await tablesRes.json();
 
-        waiterOrders = allOrders.filter(o => ['odendi_mutfakta', 'hazirlaniyor', 'hazir'].includes(o.siparis_durumu));
+        waiterOrders = allOrders.filter(o => ['nakit_bekliyor', 'odendi_mutfakta', 'hazirlaniyor', 'hazir'].includes(o.siparis_durumu));
         renderWaiterDashboard();
     } catch (e) {
         console.error("Garson verileri yüklenemedi:", e);
@@ -96,7 +96,7 @@ function renderWaiterDashboard() {
     const container = document.getElementById('waiterDashboardGrid');
     if (!container) return;
 
-    const activeOrders = waiterOrders.filter(o => ['odendi_mutfakta', 'hazirlaniyor', 'hazir'].includes(o.siparis_durumu));
+    const activeOrders = waiterOrders.filter(o => ['nakit_bekliyor', 'odendi_mutfakta', 'hazirlaniyor', 'hazir'].includes(o.siparis_durumu));
 
     if (activeOrders.length === 0) {
         container.innerHTML = `
@@ -111,14 +111,17 @@ function renderWaiterDashboard() {
 
     let html = '';
     activeOrders.forEach(order => {
-        const isReady = order.siparis_durumu === 'hazir';
+        const isCashPending = order.siparis_durumu === 'nakit_bekliyor' || (order.odeme_yontemi === 'nakit' && order.odeme_durumu !== 'odendi');
         const isPreparing = order.siparis_durumu === 'hazirlaniyor';
-        const isCashPending = order.odeme_yontemi === 'nakit' && order.odeme_durumu !== 'odendi';
+        const isReady = order.siparis_durumu === 'hazir';
 
         let badgeText = "MUTFAKTA";
         let badgeColor = "var(--danger)";
 
-        if (isPreparing) {
+        if (isCashPending) {
+            badgeText = "💵 NAKİT ÖDEME BEKLİYOR";
+            badgeColor = "#d97706";
+        } else if (isPreparing) {
             badgeText = "HAZIRLANIYOR";
             badgeColor = "var(--primary)";
         } else if (isReady) {
@@ -127,22 +130,33 @@ function renderWaiterDashboard() {
         }
 
         html += `
-            <div class="order-card status-${order.siparis_durumu}">
+            <div class="order-card status-${order.siparis_durumu}" style="${isCashPending ? 'border-color: #f59e0b; box-shadow: 0 0 20px rgba(245,158,11,0.3);' : ''}">
                 <div class="order-header">
                     <div>
                         <div class="order-table-title">🪑 ${order.masa_no}</div>
-                        <div class="order-code">Toplam: ${order.toplam_tutar.toFixed(2)} ₺</div>
+                        <div class="order-code">Toplam: ${order.toplam_tutar.toFixed(2)} ₺ ${order.garson_adi ? `• Garson: ${order.garson_adi}` : ''}</div>
                     </div>
                     <div style="text-align: right;">
-                        <span class="table-badge" style="background: ${badgeColor};">
+                        <span class="table-badge" style="background: ${badgeColor}; font-weight:800;">
                             ${badgeText}
                         </span>
                     </div>
                 </div>
 
                 ${isCashPending ? `
-                    <div style="background: rgba(245, 158, 11, 0.2); border: 1px solid var(--primary); padding: 10px; border-radius: var(--radius-md); font-weight: 700; color: #fbbf24; font-size: 0.9rem;">
-                        💵 MASADA NAKİT ÖDEME TALEBİ! (${order.toplam_tutar.toFixed(2)} ₺)
+                    <div style="background: rgba(245, 158, 11, 0.18); border: 1.5px solid var(--primary); padding: 12px; border-radius: var(--radius-md);">
+                        <div style="font-weight: 800; color: #fbbf24; font-size: 0.95rem; margin-bottom: 4px;">
+                            💵 MASADAN NAKİT TAHSİLAT YAPILACAK (${order.toplam_tutar.toFixed(2)} ₺)
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 10px;">
+                            Garson masadan fiziki olarak ${order.toplam_tutar.toFixed(2)} ₺ tahsil ettikten sonra adını yazıp onay butonuna basmalıdır. Sipariş ancak o zaman mutfağa düşer.
+                        </div>
+                        <div style="display:flex; gap: 8px; flex-wrap: wrap;">
+                            <input type="text" id="garsonInput_${order.id}" value="Garson Berat" placeholder="Ödemeyi Alan Garson Adı" style="font-size:0.85rem; padding: 8px 12px; flex:1; min-width: 130px;">
+                            <button class="btn-status-action btn-warning" style="padding: 8px 14px; font-size: 0.88rem; white-space:nowrap;" onclick="collectCash(${order.id})">
+                                💵 Nakit Tahsil Edildi
+                            </button>
+                        </div>
                     </div>
                 ` : ''}
 
@@ -165,21 +179,15 @@ function renderWaiterDashboard() {
                 </div>
 
                 <div style="display:flex; flex-direction:column; gap: 8px;">
-                    ${isCashPending ? `
-                        <button class="btn-status-action btn-warning" onclick="collectCash(${order.id})">
-                            💵 Nakit Tahsil Edildi (Garson Mehmet)
-                        </button>
-                    ` : ''}
-
                     ${isReady ? `
                         <button class="btn-status-action btn-success" onclick="deliverOrder(${order.id})">
                             🚀 Masaya Teslim Et (Siparişi Kapat)
                         </button>
-                    ` : `
+                    ` : (isCashPending ? '' : `
                         <div style="font-size: 0.85rem; color: var(--text-muted); text-align: center; width: 100%; padding: 4px;">
                             ⏳ Mutfakta Hazırlanıyor...
                         </div>
-                    `}
+                    `)}
                 </div>
             </div>
         `;
@@ -189,16 +197,19 @@ function renderWaiterDashboard() {
 }
 
 async function collectCash(siparisId) {
+    const inputEl = document.getElementById(`garsonInput_${siparisId}`);
+    const garsonName = inputEl ? inputEl.value.trim() || 'Garson Berat' : 'Garson Berat';
+
     try {
         const res = await fetch(`/api/siparisler/${siparisId}/durum`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ yeni_durum: 'nakit_tahsil_edildi', garson_adi: 'Garson Mehmet' })
+            body: JSON.stringify({ yeni_durum: 'nakit_tahsil_edildi', garson_adi: garsonName })
         });
 
         if (res.ok) {
             loadWaiterData();
-            showWaiterToast("Nakit tahsil edildi olarak kaydedildi. 👍");
+            showWaiterToast(`Nakit ödeme ${garsonName} tarafından tahsil edildi. Sipariş mutfağa aktarıldı! 👍`);
         }
     } catch (e) {
         alert("İşlem başarısız.");

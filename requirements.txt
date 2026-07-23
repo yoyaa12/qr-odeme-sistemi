@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+python-socketio
+pyodbc
+pymssql
+pydantic
+python-dotenv

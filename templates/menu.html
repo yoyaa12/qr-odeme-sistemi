@@ -22,12 +22,12 @@
         </div>
     </header>
 
-    <!-- CONTAINER -->
+    <!-- CONTAINER (ALTTA SABİT BAR İÇİN BOŞLUKLU) -->
     <main class="container">
         
-        <!-- CANLI SİPARİŞ TAKİP ALANI (SİPARİŞ VERİLDİĞİNDE BURADA GÖRÜNÜR) -->
+        <!-- CANLI SİPARİŞ TAKİP ALANI (F5 İLE KAYBOLMAZ, SİPARİŞ DETAYLARINI İÇERİR) -->
         <div id="orderTrackingContainer" style="display: none;">
-            <!-- Canlı takip adımları JS ile render edilecek -->
+            <!-- Canlı takip ve sipariş detayları JS ile render edilir -->
         </div>
 
         <!-- KUTU KUTU GÖRSELLİ KATEGORİ KARTLARI -->
@@ -41,12 +41,19 @@
         </div>
     </main>
 
-    <!-- FLOATING CART BUTTON -->
-    <button id="cartFloatingBtn" class="cart-floating-btn" style="display: none;" onclick="openCartModal()">
-        <span>🛒 Sepetim</span>
-        <span id="cartBadge" class="cart-count-badge">0</span>
-        <span id="cartTotalPrice" style="margin-left: 8px;">0.00 ₺</span>
-    </button>
+    <!-- EN ALTTA ÇAKIŞMAYAN SABİT SEPET BARI (STICKY BOTTOM DOCK) -->
+    <div id="cartStickyDock" class="cart-bottom-dock" style="display: none;">
+        <button class="btn-cart-dock" onclick="openCartModal()">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size: 1.3rem;">🛒</span>
+                <div style="text-align:left;">
+                    <div style="font-size:0.95rem; font-weight:800;">Sepetimi İncele</div>
+                    <div id="cartDockItemCount" style="font-size:0.78rem; opacity:0.85;">0 Ürün Eklendi</div>
+                </div>
+            </div>
+            <div id="cartDockTotalPrice" class="cart-dock-price">0.00 ₺</div>
+        </button>
+    </div>
 
     <!-- 0. İLK GİRİŞ DİL SEÇİM MODALİ -->
     <div id="languageModal" class="modal-overlay">
@@ -108,7 +115,7 @@
         </div>
     </div>
 
-    <!-- 2. SEPET VE PRATİK ÖDEME SEÇENEKLERİ MODALİ -->
+    <!-- 2. SEPET MODALİ -->
     <div id="cartModal" class="modal-overlay">
         <div class="modal-content">
             <div class="modal-header">
@@ -123,83 +130,60 @@
                 <span id="modalCartTotal" style="font-size: 1.4rem; font-weight: 800; color: #fbbf24;">0.00 ₺</span>
             </div>
 
-            <!-- PRATİK ÖDEME SEÇENEKLERİ (FORM DOLDURMA YOK!) -->
+            <!-- ÖDEME YÖNTEMİ SEÇENEKLERİ -->
             <div style="display:flex; flex-direction:column; gap: 12px;">
-                <button class="btn-add" style="justify-content: center; padding: 14px; font-size: 1rem; background: linear-gradient(135deg, var(--primary), #d97706);" onclick="submitOrder('pos')">
+                <button class="btn-add" style="justify-content: center; padding: 14px; font-size: 1rem; background: linear-gradient(135deg, var(--primary), #d97706);" onclick="openPaymentCheckout('pos')">
                     ⚡  Pay / Google Pay / Hızlı Kart ile Öde
                 </button>
-                <button class="btn-add" style="justify-content: center; padding: 14px; font-size: 1rem; background: linear-gradient(135deg, var(--success), #047857);" onclick="submitOrder('nakit')">
+                <button class="btn-add" style="justify-content: center; padding: 14px; font-size: 1rem; background: linear-gradient(135deg, var(--success), #047857);" onclick="openPaymentCheckout('nakit')">
                     💵 Masada Garsona Nakit Öde
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- 3. HIZLI KART / GOOGLE PAY ÖDEME ONAY MODALİ (2. ONAY ADIMI) -->
-    <div id="payModal" class="modal-overlay">
+    <!-- 3. ÖDEME ONAY & KART SEÇİM / DEKONT EKRANI MODALİ -->
+    <div id="paymentCheckoutModal" class="modal-overlay">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>💳 Ödeme ve Kart Seçimi</h3>
-                <button class="modal-close" onclick="closeModal('payModal')">✖</button>
+                <h3 id="checkoutModalTitle">💳 Ödeme ve Sipariş Onayı</h3>
+                <button class="modal-close" onclick="closeModal('paymentCheckoutModal')">✖</button>
             </div>
-            
-            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">
-                Siparişinizi tamamlamak için kayıtlı kartınızı seçin ve onaylayın.
-            </p>
 
-            <div style="background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px; margin-bottom: 16px;">
-                <div style="display:flex; justify-content:space-between; margin-bottom: 6px; font-weight: 700;">
+            <!-- Sipariş Özeti Dekontu -->
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px; margin-bottom: 16px;">
+                <div style="font-size:0.85rem; font-weight:700; color:var(--text-secondary); margin-bottom:8px;">📋 SİPARİŞ DEKONT ÖZETİ</div>
+                <div id="checkoutSummaryList" style="display:flex; flex-direction:column; gap:6px; font-size:0.9rem;"></div>
+                <div style="display:flex; justify-content:space-between; border-top:1px dashed var(--border-color); margin-top:10px; padding-top:8px; font-weight:800; font-size:1.1rem; color:#fbbf24;">
                     <span>Ödenecek Tutar:</span>
-                    <span id="payModalAmount" style="color: #fbbf24; font-size: 1.2rem; font-weight: 800;">0.00 ₺</span>
-                </div>
-                <div style="font-size: 0.8rem; color: var(--text-secondary);" id="payModalItemCount">
-                    0 parça ürün
+                    <span id="checkoutTotalAmount">0.00 ₺</span>
                 </div>
             </div>
 
-            <div class="option-section-title" style="margin-bottom: 10px;">💳 Ödeme Yöntemi / Kart Seçin</div>
-            
-            <div class="pay-card-options-list" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
-                <div class="pay-card-item active" onclick="selectPayCard(this, 'Garanti BBVA Bonus (**** 4821)')">
-                    <div style="display:flex; align-items:center; gap: 10px;">
-                        <span style="font-size: 1.4rem;">💳</span>
-                        <div>
-                            <div style="font-weight: 700; font-size: 0.95rem;">Garanti BBVA Bonus</div>
-                            <div style="font-size: 0.8rem; color: var(--text-secondary);">**** **** **** 4821 (Son Kullanma: 12/28)</div>
-                        </div>
-                    </div>
-                    <span class="pay-check-icon">✓</span>
-                </div>
-
-                <div class="pay-card-item" onclick="selectPayCard(this, 'İş Bankası Maximum (**** 9102)')">
-                    <div style="display:flex; align-items:center; gap: 10px;">
-                        <span style="font-size: 1.4rem;">💳</span>
-                        <div>
-                            <div style="font-weight: 700; font-size: 0.95rem;">İş Bankası Maximum</div>
-                            <div style="font-size: 0.8rem; color: var(--text-secondary);">**** **** **** 9102 (Son Kullanma: 08/27)</div>
-                        </div>
-                    </div>
-                    <span class="pay-check-icon" style="display:none;">✓</span>
-                </div>
-
-                <div class="pay-card-item" onclick="selectPayCard(this, 'Google Pay (y****@gmail.com)')">
-                    <div style="display:flex; align-items:center; gap: 10px;">
-                        <span style="font-size: 1.4rem;">🌐</span>
-                        <div>
-                            <div style="font-weight: 700; font-size: 0.95rem;">Google Pay</div>
-                            <div style="font-size: 0.8rem; color: var(--text-secondary);">Hızlı Tek Tıkla Cüzdan Ödemesi</div>
-                        </div>
-                    </div>
-                    <span class="pay-check-icon" style="display:none;">✓</span>
+            <!-- KART / SEÇENEK SEÇİM ALANI (POS İÇİN) -->
+            <div id="cardSelectSection" style="margin-bottom: 20px;">
+                <div class="option-section-title">Ödeme Yönteminiz</div>
+                <div style="display:flex; flex-direction:column; gap: 8px;">
+                    <label class="extra-item-row selected" style="cursor:pointer;">
+                        <input type="radio" name="cardOption" value="apple_pay" checked style="accent-color: var(--primary);">
+                        <span style="font-weight:700;"> Pay / Google Pay (Hızlı Bakiye)</span>
+                    </label>
+                    <label class="extra-item-row" style="cursor:pointer;">
+                        <input type="radio" name="cardOption" value="bonus_card" style="accent-color: var(--primary);">
+                        <span style="font-weight:700;">💳 **** 4242 Garanti Bonus Kart</span>
+                    </label>
                 </div>
             </div>
 
-            <div style="display:flex; flex-direction:column; gap: 10px;">
-                <button class="btn-add" style="justify-content: center; padding: 14px; font-size: 1.05rem; background: linear-gradient(135deg, var(--success), #047857);" onclick="confirmPaymentAndSubmit()">
-                    🔒 Ödemeyi Onayla ve Siparişi Ver
-                </button>
-                <button style="background: transparent; color: var(--text-secondary); padding: 10px; font-size: 0.9rem;" onclick="closeModal('payModal')">
-                    Vazgeç / İptal
+            <!-- NAKİT AÇIKLAMA ALANI -->
+            <div id="cashNoticeSection" style="display:none; margin-bottom:20px; background: rgba(16,185,129,0.15); border:1px solid var(--success); padding:12px; border-radius:var(--radius-md); font-size:0.88rem; color:#fff;">
+                ℹ️ Siparişinizi onayladığınızda <strong>garsonlarımızdan biri nakit tahsilat için masanıza gelecektir</strong>. Garson parayı alıp panelinden onaylayacaktır.
+            </div>
+
+            <!-- ONAY BUTONU VE YÜKLENİYOR SİMÜLASYONU -->
+            <div id="checkoutActionBox">
+                <button id="btnConfirmFinalPayment" class="btn-add" style="width: 100%; justify-content: center; padding: 14px; font-size: 1rem; background: linear-gradient(135deg, var(--success), #047857);" onclick="confirmFinalOrder()">
+                    ✅ Ödemeyi Onayla ve Siparişi Tamamla
                 </button>
             </div>
         </div>

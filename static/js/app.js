@@ -14,7 +14,7 @@ let state = {
     selectedExtras: [],
     activeNotes: [],
     currentOrder: null,
-    selectedCard: "Garanti BBVA Bonus (**** 4821)",
+    selectedPaymentMethod: 'pos',
     language: localStorage.getItem('qr_language') || null
 };
 
@@ -100,7 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadCategories();
     loadProducts();
-    checkActiveOrder(); // F5 RECOVERY
+    checkActiveOrder(); // F5 RECOVERY: Sayfa yenilendiğinde aktif siparişi getirir!
 
     // Socket.io Canlı Dinleyici (Otomatik Reconnection Ayarları)
     const socket = io({
@@ -111,24 +111,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('durum_guncellendi', (data) => {
-        if (data.masa_id === state.masaId && state.currentOrder) {
-            state.currentOrder.siparis_durumu = data.yeni_durum;
-            if (data.odeme_durumu) state.currentOrder.odeme_durumu = data.odeme_durumu;
-            renderOrderTrackingUI();
+        if (data.masa_id === state.masaId) {
+            checkActiveOrder();
             playNotificationSound();
         }
     });
 
     socket.on('nakit_odendi', (data) => {
-        if (data.masa_id === state.masaId && state.currentOrder) {
-            state.currentOrder.odeme_durumu = 'odendi';
-            renderOrderTrackingUI();
+        if (data.masa_id === state.masaId) {
+            checkActiveOrder();
             playNotificationSound();
             showToast("💵 Garson nakit ödemenizi tahsil etti. Teşekkürler!");
         }
     });
 });
 
+// F5 İLE SAYFA YENİLENDİĞİNDE MÜŞTERİNİN AKTİF SİPARİŞİNİ KURTARAN FONKSİYON
 async function checkActiveOrder() {
     try {
         const res = await fetch(`/api/masalar/${state.masaId}/aktif-siparis`);
@@ -136,6 +134,10 @@ async function checkActiveOrder() {
         if (data.has_active && data.siparis) {
             state.currentOrder = data.siparis;
             renderOrderTrackingUI();
+        } else {
+            state.currentOrder = null;
+            const container = document.getElementById('orderTrackingContainer');
+            if (container) container.style.display = 'none';
         }
     } catch (e) {
         console.error("Aktif sipariş yüklenemedi:", e);
@@ -350,7 +352,6 @@ function renderQuickNotesChips(catName, prodName) {
         const isActive = state.activeNotes.includes(chipText);
         let isDisabled = false;
 
-        // EĞER ODA SICAKLIĞINDA SEÇİLİYSEN BUZ SEÇENEĞİ KANANIR!
         if (chipObj.dependsOn === 'cold' && isRoomTempSelected) {
             isDisabled = true;
         }
@@ -368,11 +369,9 @@ function renderQuickNotesChips(catName, prodName) {
 function toggleNoteChip(text, group) {
     const noteInput = document.getElementById('modalProductNote');
     
-    // Aynı gruptakileri yönet (Örn: Oda sıcaklığında seçildiğinde Soğuk dolaptan kapatılır)
     if (group === 'temp') {
         state.activeNotes = state.activeNotes.filter(n => !n.includes('Soğuk') && !n.includes('Oda Sıcaklığında'));
         if (text.includes('Oda Sıcaklığında')) {
-            // Oda sıcaklığında seçildiyse buz çipini de notlardan sil!
             state.activeNotes = state.activeNotes.filter(n => !n.includes('Buzlu'));
         }
     }
@@ -456,19 +455,20 @@ function confirmAddToCart() {
     showToast(`${fullTitle} sepete eklendi!`);
 }
 
+// EN ALTTA ÇAKIŞMAYAN SABİT SEPET BARI GÜNCELLEMESİ
 function updateCartUI() {
     const totalCount = state.cart.reduce((acc, item) => acc + item.adet, 0);
     const totalPrice = state.cart.reduce((acc, item) => acc + item.ara_toplam, 0);
 
-    const floatingBtn = document.getElementById('cartFloatingBtn');
-    const cartBadge = document.getElementById('cartBadge');
-    const cartTotalPrice = document.getElementById('cartTotalPrice');
+    const cartDock = document.getElementById('cartStickyDock');
+    const cartCount = document.getElementById('cartDockItemCount');
+    const cartPrice = document.getElementById('cartDockTotalPrice');
 
-    if (cartBadge) cartBadge.innerText = totalCount;
-    if (cartTotalPrice) cartTotalPrice.innerText = `${totalPrice.toFixed(2)} ₺`;
+    if (cartCount) cartCount.innerText = `${totalCount} Adet Ürün Eklendi`;
+    if (cartPrice) cartPrice.innerText = `${totalPrice.toFixed(2)} ₺`;
 
-    if (floatingBtn) {
-        floatingBtn.style.display = totalCount > 0 ? 'flex' : 'none';
+    if (cartDock) {
+        cartDock.style.display = totalCount > 0 ? 'flex' : 'none';
     }
 }
 
@@ -508,52 +508,65 @@ function removeCartItem(index) {
     openCartModal();
 }
 
-// PRATİK ÖDEME SEÇENEKLERİ (POS 1-TIK & MASADA NAKİT)
-async function submitOrder(odemeYontemi) {
+// ÖDEME ONAY VE KART SEÇİM / DEKONT EKRANI MODALİ
+function openPaymentCheckout(method) {
     if (state.cart.length === 0) return;
 
-    if (odemeYontemi === 'pos') {
-        // Doğrudan sipariş vermek yerine 2. Onay & Kart Seçim Modali Aç!
-        closeModal('cartModal');
-        openPayModal();
-        return;
+    state.selectedPaymentMethod = method;
+    closeModal('cartModal');
+
+    const totalAmount = state.cart.reduce((acc, item) => acc + item.ara_toplam, 0);
+
+    document.getElementById('checkoutTotalAmount').innerText = `${totalAmount.toFixed(2)} ₺`;
+    
+    let summaryHTML = '';
+    state.cart.forEach(item => {
+        summaryHTML += `
+            <div style="display:flex; justify-content:space-between;">
+                <span>${item.adet}x ${item.urun_adi}</span>
+                <span style="font-weight:700;">${item.ara_toplam.toFixed(2)} ₺</span>
+            </div>
+            ${item.urun_notu ? `<div style="font-size:0.75rem; color:var(--text-secondary); padding-left:8px;">• ${item.urun_notu}</div>` : ''}
+        `;
+    });
+    document.getElementById('checkoutSummaryList').innerHTML = summaryHTML;
+
+    const cardSection = document.getElementById('cardSelectSection');
+    const cashSection = document.getElementById('cashNoticeSection');
+    const title = document.getElementById('checkoutModalTitle');
+    const btnConfirm = document.getElementById('btnConfirmFinalPayment');
+
+    if (method === 'pos') {
+        if (title) title.innerText = '💳 Kart /  Pay ile Ödeme ve Sipariş Onayı';
+        if (cardSection) cardSection.style.display = 'block';
+        if (cashSection) cashSection.style.display = 'none';
+        if (btnConfirm) btnConfirm.innerText = '✅ Ödemeyi Yap ve Siparişi Tamamla';
+    } else {
+        if (title) title.innerText = '💵 Masada Nakit Ödeme (Garson İsteği)';
+        if (cardSection) cardSection.style.display = 'none';
+        if (cashSection) cashSection.style.display = 'block';
+        if (btnConfirm) btnConfirm.innerText = '📩 Siparişi Gönder (Garson Masanıza Gelecek)';
     }
 
-    // Masada Nakit Öde seçeneği ise doğrudan siparişi gönder
-    closeModal('cartModal');
-    await executeOrderSubmit('nakit');
+    document.getElementById('paymentCheckoutModal').classList.add('active');
 }
 
-function openPayModal() {
-    const totalAmount = state.cart.reduce((acc, item) => acc + item.ara_toplam, 0);
-    const totalCount = state.cart.reduce((acc, item) => acc + item.adet, 0);
+async function confirmFinalOrder() {
+    const actionBox = document.getElementById('checkoutActionBox');
+    const originalHTML = actionBox.innerHTML;
+    const isCash = state.selectedPaymentMethod === 'nakit';
 
-    const payModalAmount = document.getElementById('payModalAmount');
-    const payModalItemCount = document.getElementById('payModalItemCount');
+    actionBox.innerHTML = `
+        <div style="text-align:center; padding:14px; font-weight:800; color:var(--primary); font-size:1rem;">
+            ${isCash ? '⏳ Siparişiniz İletiliyor... Garson Masanıza Yönlendiriliyor...' : '⏳ Ödemeniz İşleniyor ve Mutfak Onayına Gönderiliyor...'}
+        </div>
+    `;
 
-    if (payModalAmount) payModalAmount.innerText = `${totalAmount.toFixed(2)} ₺`;
-    if (payModalItemCount) payModalItemCount.innerText = `${totalCount} adet ürün sepette`;
-
-    document.getElementById('payModal').classList.add('active');
-}
-
-function selectPayCard(element, cardName) {
-    document.querySelectorAll('.pay-card-item').forEach(el => {
-        el.classList.remove('active');
-        const check = el.querySelector('.pay-check-icon');
-        if (check) check.style.display = 'none';
-    });
-
-    element.classList.add('active');
-    const checkIcon = element.querySelector('.pay-check-icon');
-    if (checkIcon) checkIcon.style.display = 'block';
-
-    state.selectedCard = cardName;
-}
-
-async function confirmPaymentAndSubmit() {
-    closeModal('payModal');
-    await executeOrderSubmit('pos');
+    setTimeout(async () => {
+        await executeOrderSubmit(state.selectedPaymentMethod || 'pos');
+        closeModal('paymentCheckoutModal');
+        actionBox.innerHTML = originalHTML;
+    }, 1200);
 }
 
 async function executeOrderSubmit(odemeYontemi) {
@@ -589,9 +602,9 @@ async function executeOrderSubmit(odemeYontemi) {
             playNotificationSound();
 
             if (odemeYontemi === 'pos') {
-                showToast(`💳 ${state.selectedCard || 'Kart'} ile ödeme onaylandı ve sipariş alındı!`);
+                showToast("💳 Ödemeniz onaylandı ve siparişiniz alındı!");
             } else {
-                showToast("💵 Masada nakit ödeme talebiniz iletildi!");
+                showToast("💵 Siparişiniz alındı! Garsonumuz nakit ödeme için masanıza geliyor.");
             }
         } else {
             alert(data.detail || "Hata oluştu.");
@@ -601,7 +614,7 @@ async function executeOrderSubmit(odemeYontemi) {
     }
 }
 
-// CANLI SİPARİŞ TAKİP EKRANI (NET CANLI DURUM & VERİLEN SİPARİŞ LİSTESİ)
+// CANLI SİPARİŞ TAKİP EKRANI (F5 İLE KANANMAZ + SİPARİŞ VERİLEN ÜRÜNLERİN LİSTESİ)
 function renderOrderTrackingUI() {
     const container = document.getElementById('orderTrackingContainer');
     if (!container || !state.currentOrder) return;
@@ -627,35 +640,33 @@ function renderOrderTrackingUI() {
     
     let currentStatusHTML = '';
 
-    if (status === 'odendi_mutfakta') {
-        if (isCashPending) {
-            currentStatusHTML = `
-                <div class="single-status-banner active-step-received" style="border-color: #fbbf24; background: rgba(245, 158, 11, 0.15);">
-                    <div class="status-icon-large">💵</div>
-                    <div class="status-info">
-                        <div class="status-title-main" style="color:#fbbf24;">Garson Bekleniyor (Nakit Ödeme)</div>
-                        <div class="status-sub-desc">Siparişiniz alındı mutfağa iletildi. Garson masanızdan nakit tahsilatı yapmak üzere geliyor.</div>
-                    </div>
+    if (status === 'nakit_bekliyor' || isCashPending) {
+        currentStatusHTML = `
+            <div class="single-status-banner active-step-received" style="border-color: #fbbf24; background: rgba(245, 158, 11, 0.15);">
+                <div class="status-icon-large">🏃‍♂️💵</div>
+                <div class="status-info">
+                    <div class="status-title-main" style="color:#fbbf24;">Sipariş Alındı (Garson Gelecek)</div>
+                    <div class="status-sub-desc">Garsonlarımızdan birisi nakit ödemeyi almak üzere masanıza geliyor. Parayı garsona teslim ettikten sonra siparişiniz garson tarafından onaylanacaktır.</div>
                 </div>
-            `;
-        } else {
-            currentStatusHTML = `
-                <div class="single-status-banner active-step-received">
-                    <div class="status-icon-large">✅</div>
-                    <div class="status-info">
-                        <div class="status-title-main">Siparişiniz Alındı</div>
-                        <div class="status-sub-desc">Ödemeniz Onaylandı • Mutfak onayına sunuldu.</div>
-                    </div>
+            </div>
+        `;
+    } else if (status === 'odendi_mutfakta') {
+        currentStatusHTML = `
+            <div class="single-status-banner active-step-received">
+                <div class="status-icon-large">✅</div>
+                <div class="status-info">
+                    <div class="status-title-main">Siparişiniz Alındı</div>
+                    <div class="status-sub-desc">Ödemeniz Onaylandı • Mutfak onayına sunuldu.</div>
                 </div>
-            `;
-        }
+            </div>
+        `;
     } else if (status === 'hazirlaniyor') {
         currentStatusHTML = `
             <div class="single-status-banner active-step-preparing">
                 <div class="status-icon-large">👨‍🍳</div>
                 <div class="status-info">
                     <div class="status-title-main">Mutfakta Hazırlanıyor</div>
-                    <div class="status-sub-desc">Şeflerimiz siparişinizi hazırlıyor. Tahmini süre: <strong style="color:#fbbf24;">~10 - 15 dk</strong></div>
+                    <div class="status-sub-desc">Tahmini Hazırlanma Süresi: <strong style="color:#fbbf24;">~12 - 15 dk</strong></div>
                 </div>
             </div>
         `;
@@ -664,14 +675,14 @@ function renderOrderTrackingUI() {
             <div class="single-status-banner active-step-ready">
                 <div class="status-icon-large">🔔</div>
                 <div class="status-info">
-                    <div class="status-title-main">Yemeğiniz Hazır!</div>
-                    <div class="status-sub-desc">Garson siparişinizi masanıza getirmek üzere servis tepsisine aldı.</div>
+                    <div class="status-title-main">Siparişiniz Hazır!</div>
+                    <div class="status-sub-desc">Garson yemeğinizi masanıza getirmek üzere yola çıktı.</div>
                 </div>
             </div>
         `;
     }
 
-    // ÜRÜN DETAYLARI LİSTESİ (MÜŞTERİ NE SİPARİŞ ETTİĞİNİ GÖREBİLİR)
+    // ÜRÜN DETAYLARI LİSTESİ (MÜŞTERİ NE SİPARİŞ ETTİĞİNİ NET OLARAK GÖRÜR)
     let detailsHTML = '';
     const detaylar = state.currentOrder.detaylar || [];
     detaylar.forEach(item => {
@@ -687,22 +698,22 @@ function renderOrderTrackingUI() {
     });
 
     const paymentBadge = isCashPending
-        ? `<span class="table-badge" style="background: #d97706;">💵 Masada Nakit (Bekliyor)</span>`
-        : `<span class="table-badge" style="background: var(--success);">💳 Ödendi / Onaylı</span>`;
+        ? `<span class="table-badge" style="background: #d97706;">💵 Masada Nakit (Garson Bekleniyor)</span>`
+        : `<span class="table-badge" style="background: var(--success);">💳 Ödendi</span>`;
 
     let html = `
         <div class="tracking-card">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
-                <span style="font-size: 0.8rem; font-weight:800; color: var(--primary); letter-spacing: 0.5px;">🚀 CANLI SİPARİŞ TAKİBİ (${state.currentOrder.siparis_kodu || ''})</span>
+                <span style="font-size: 0.8rem; font-weight:800; color: var(--primary); letter-spacing: 0.5px;">🚀 CANLI SİPARİŞ DURUMU</span>
                 <span class="table-badge">🪑 ${state.masaNo}</span>
             </div>
             
             ${currentStatusHTML}
 
-            <!-- VERİLEN SİPARİŞİN İÇERİĞİ -->
-            <div style="margin-top: 16px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px;">
+            <!-- VERİLEN SİPARİŞİN İÇERİĞİ (NE SÖYLEDİĞİNİ GÖSTERİR) -->
+            <div style="margin-top: 16px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;">
-                    <span style="font-size: 0.88rem; font-weight: 700; color: var(--text-primary);">🛒 Verilen Sipariş Detayı:</span>
+                    <span style="font-size: 0.88rem; font-weight: 700; color: var(--text-primary);">📋 Sipariş Ettiğiniz Ürünler:</span>
                     ${paymentBadge}
                 </div>
                 

@@ -1,9 +1,10 @@
 import os
 import uuid
 import datetime
+import decimal
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 import socketio
 from pydantic import BaseModel
@@ -11,9 +12,24 @@ from typing import List, Optional
 
 from app.database import execute_query, execute_non_query
 
+def sanitize_for_json(data):
+    if isinstance(data, dict):
+        return {k: sanitize_for_json(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [sanitize_for_json(item) for item in data]
+    elif isinstance(data, (datetime.datetime, datetime.date, datetime.time)):
+        return data.strftime("%H:%M:%S") if isinstance(data, (datetime.datetime, datetime.time)) else str(data)
+    elif isinstance(data, decimal.Decimal):
+        return float(data)
+    return data
+
 # Socket.io Async Sunucusu Oluşturma
 sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
 app = FastAPI(title="QR Restoran Sipariş Otomasyonu API")
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return Response(status_code=204)
 
 # Socket.io ASGI uygulamasını FastAPI'ye bağlama
 app_asgi = socketio.ASGIApp(sio, app)
@@ -153,12 +169,13 @@ async def create_siparis(data: SiparisOlusturModel):
         raise HTTPException(status_code=404, detail="Geçersiz masa ID!")
 
     odeme_durumu = "odendi" if data.odeme_yontemi == "pos" else "nakit_bekliyor"
+    siparis_durumu = "odendi_mutfakta" if data.odeme_yontemi == "pos" else "nakit_bekliyor"
 
     insert_order_query = """
         INSERT INTO Siparisler (masa_id, siparis_kodu, toplam_tutar, odeme_durumu, siparis_durumu)
-        VALUES (?, ?, ?, ?, 'odendi_mutfakta')
+        VALUES (?, ?, ?, ?, ?)
     """
-    siparis_id = execute_non_query(insert_order_query, (data.masa_id, siparis_kodu, data.toplam_tutar, odeme_durumu))
+    siparis_id = execute_non_query(insert_order_query, (data.masa_id, siparis_kodu, data.toplam_tutar, odeme_durumu, siparis_durumu))
 
     if not siparis_id:
         s_row = execute_query("SELECT id FROM Siparisler WHERE siparis_kodu = ?", (siparis_kodu,), fetch_one=True)
@@ -200,13 +217,15 @@ async def create_siparis(data: SiparisOlusturModel):
         "toplam_tutar": data.toplam_tutar,
         "odeme_yontemi": data.odeme_yontemi,
         "odeme_durumu": odeme_durumu,
-        "siparis_durumu": "odendi_mutfakta",
+        "siparis_durumu": siparis_durumu,
         "olusturma_tarihi": datetime.datetime.now().strftime("%H:%M:%S"),
         "detaylar": detaylar
     }
 
-    # SOCKET.IO BİLDİRİMLERİ (Mutfak & Garson Panellerine Yayınla)
-    await sio.emit("yeni_siparis", full_order)
+    # SOCKET.IO BİLDİRİMLERİ (Sadece POS ile ödendi ise mutfağa anında düşer)
+    if data.odeme_yontemi == "pos":
+        await sio.emit("yeni_siparis", full_order)
+
     await sio.emit("masa_durumu_degisti", {"masa_id": data.masa_id, "durum": "dolu"})
     
     if data.odeme_yontemi == "nakit":
@@ -214,10 +233,11 @@ async def create_siparis(data: SiparisOlusturModel):
             "siparis_id": siparis_id,
             "masa_id": data.masa_id,
             "masa_no": masa['masa_no'],
-            "toplam_tutar": data.toplam_tutar
+            "toplam_tutar": data.toplam_tutar,
+            "siparis": full_order
         })
 
-    return {"status": "success", "message": "Sipariş mutfağa iletildi!", "siparis": full_order}
+    return {"status": "success", "message": "Sipariş oluşturuldu.", "siparis": full_order}
 
 
 # 5. SİPARİŞLERİ LİSTELEME
@@ -236,10 +256,8 @@ async def get_siparisler(durum: Optional[str] = None, masa_id: Optional[int] = N
     for s in siparisler:
         d_query = "SELECT sd.*, u.urun_adi FROM SiparisDetaylari sd JOIN Urunler u ON sd.urun_id = u.id WHERE sd.siparis_id = ?"
         s['detaylar'] = execute_query(d_query, (s['id'],)) or []
-        if isinstance(s.get('olusturma_tarihi'), datetime.datetime):
-            s['olusturma_tarihi'] = s['olusturma_tarihi'].strftime("%H:%M:%S")
 
-    return siparisler
+    return sanitize_for_json(siparisler)
 
 
 # 5.5 MASANIN AKTİF SİPARİŞİNİ ALMA (F5 KORUMASI İÇİN)
@@ -265,43 +283,76 @@ async def get_masa_aktif_siparis(masa_id: int):
 # 6. SİPARİŞ DURUMU GÜNCELLEME
 @app.patch("/api/siparisler/{siparis_id}/durum")
 async def update_siparis_durumu(siparis_id: int, data: DurumGuncelleModel):
-    yeni_durum = data.yeni_durum.lower()
-    
-    s_info = execute_query("SELECT s.*, m.masa_no FROM Siparisler s JOIN Masalar m ON s.masa_id = m.id WHERE s.id = ?", (siparis_id,), fetch_one=True)
-    if not s_info:
-        raise HTTPException(status_code=404, detail="Sipariş bulunamadı!")
+    try:
+        yeni_durum = data.yeni_durum.lower()
+        
+        s_info = execute_query("SELECT s.*, m.masa_no FROM Siparisler s JOIN Masalar m ON s.masa_id = m.id WHERE s.id = ?", (siparis_id,), fetch_one=True)
+        if not s_info:
+            raise HTTPException(status_code=404, detail="Sipariş bulunamadı!")
 
-    if yeni_durum == "nakit_tahsil_edildi":
-        execute_non_query("UPDATE Siparisler SET odeme_durumu = 'odendi' WHERE id = ?", (siparis_id,))
-        yeni_durum = s_info['siparis_durumu'] # Durumu değiştirme, ödemeyi güncelle
-    else:
-        execute_non_query("UPDATE Siparisler SET siparis_durumu = ? WHERE id = ?", (yeni_durum, siparis_id))
+        garson_adi = data.garson_adi or "Garson Berat"
 
-    if yeni_durum in ["teslim_edildi", "iptal"]:
-        aktif_siparisler = execute_query(
-            "SELECT COUNT(*) as cnt FROM Siparisler WHERE masa_id = ? AND siparis_durumu IN ('odendi_mutfakta', 'hazirlaniyor', 'hazir')",
-            (s_info['masa_id'],),
-            fetch_one=True
-        )
-        if not aktif_siparisler or aktif_siparisler['cnt'] == 0:
-            execute_non_query("UPDATE Masalar SET durum = 'bos' WHERE id = ?", (s_info['masa_id'],))
-            await sio.emit("masa_durumu_degisti", {"masa_id": s_info['masa_id'], "durum": "bos"})
+        if yeni_durum == "nakit_tahsil_edildi":
+            try:
+                execute_non_query(
+                    "UPDATE Siparisler SET odeme_durumu = 'odendi', siparis_durumu = 'odendi_mutfakta', garson_adi = ? WHERE id = ?",
+                    (garson_adi, siparis_id)
+                )
+            except Exception:
+                execute_non_query(
+                    "UPDATE Siparisler SET odeme_durumu = 'odendi', siparis_durumu = 'odendi_mutfakta' WHERE id = ?",
+                    (siparis_id,)
+                )
+            yeni_durum = "odendi_mutfakta"
+        else:
+            execute_non_query("UPDATE Siparisler SET siparis_durumu = ? WHERE id = ?", (yeni_durum, siparis_id))
 
-    event_payload = {
-        "siparis_id": siparis_id,
-        "masa_id": s_info['masa_id'],
-        "masa_no": s_info['masa_no'],
-        "yeni_durum": yeni_durum,
-        "odeme_durumu": "odendi" if data.yeni_durum == "nakit_tahsil_edildi" else s_info.get("odeme_durumu", "odendi"),
-        "garson_adi": data.garson_adi or "Garson",
-        "guncelleme_tarihi": datetime.datetime.now().strftime("%H:%M:%S")
-    }
+        if yeni_durum in ["teslim_edildi", "iptal"]:
+            aktif_siparisler = execute_query(
+                "SELECT COUNT(*) as cnt FROM Siparisler WHERE masa_id = ? AND siparis_durumu IN ('nakit_bekliyor', 'odendi_mutfakta', 'hazirlaniyor', 'hazir')",
+                (s_info['masa_id'],),
+                fetch_one=True
+            )
+            if not aktif_siparisler or aktif_siparisler['cnt'] == 0:
+                execute_non_query("UPDATE Masalar SET durum = 'bos' WHERE id = ?", (s_info['masa_id'],))
+                await sio.emit("masa_durumu_degisti", {"masa_id": s_info['masa_id'], "durum": "bos"})
 
-    await sio.emit("durum_guncellendi", event_payload)
-    if data.yeni_durum == "nakit_tahsil_edildi":
-        await sio.emit("nakit_odendi", event_payload)
+        # Güncellenmiş siparişi detaylarıyla çek
+        updated_order = execute_query("SELECT s.*, m.masa_no FROM Siparisler s JOIN Masalar m ON s.masa_id = m.id WHERE s.id = ?", (siparis_id,), fetch_one=True)
+        if not updated_order:
+            updated_order = dict(s_info)
+            updated_order['siparis_durumu'] = yeni_durum
+        
+        d_query = "SELECT sd.*, u.urun_adi FROM SiparisDetaylari sd JOIN Urunler u ON sd.urun_id = u.id WHERE sd.siparis_id = ?"
+        updated_order['detaylar'] = execute_query(d_query, (siparis_id,)) or []
+        
+        updated_order = sanitize_for_json(updated_order)
 
-    return {"status": "success", "message": f"Sipariş güncellendi.", "data": event_payload}
+        event_payload = sanitize_for_json({
+            "siparis_id": siparis_id,
+            "masa_id": s_info['masa_id'],
+            "masa_no": s_info['masa_no'],
+            "yeni_durum": yeni_durum,
+            "odeme_durumu": updated_order.get("odeme_durumu", "odendi"),
+            "garson_adi": garson_adi,
+            "guncelleme_tarihi": datetime.datetime.now().strftime("%H:%M:%S"),
+            "siparis": updated_order
+        })
+
+        if data.yeni_durum == "nakit_tahsil_edildi":
+            # Nakit tahsil edilince mutfağa yeni sipariş uyarısı at
+            await sio.emit("yeni_siparis", updated_order)
+            await sio.emit("nakit_odendi", event_payload)
+
+        await sio.emit("durum_guncellendi", event_payload)
+
+        return {"status": "success", "message": f"Sipariş güncellendi.", "data": event_payload}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Veritabanı/Sunucu hatası: {str(e)}")
 
 
 # 7. AUTH & ADMIN ENDPOINTS
