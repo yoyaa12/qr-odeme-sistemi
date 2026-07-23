@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Garson Paneli - Masa Sipariş Takibi</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+
+    <!-- NAVBAR -->
+    <header class="navbar" style="border-bottom: 2px solid var(--success);">
+        <div class="brand">
+            <svg class="brand-icon-svg" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+            </svg>
+            <span>Garson Operasyon Paneli</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <span id="socketStatusBadge" style="font-size: 0.85rem; color: var(--danger); font-weight: 700;">🔴 Bağlantı Kuruluyor...</span>
+            <a href="/" style="background: rgba(255,255,255,0.1); padding: 6px 12px; border-radius: var(--radius-sm); font-size: 0.85rem;">Ana Ekran</a>
+        </div>
+    </header>
+
+    <!-- CONTAINER -->
+    <main class="container">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+            <h2>🚀 Masalar & Teslimat Bekleyen Siparişler</h2>
+            <span style="color: var(--text-secondary); font-size: 0.9rem;">Mutfakta "Hazır" yapılan yemekler yeşil renkte uyarır.</span>
+        </div>
+
+        <!-- WAITER DASHBOARD GRID -->
+        <div id="waiterDashboardGrid" class="order-cards-grid">
+            <!-- Garson kartları JS ile gelecek -->
+        </div>
+    </main>
+
+    <script src="/static/js/waiter.js"></script>
+</body>
+</html>

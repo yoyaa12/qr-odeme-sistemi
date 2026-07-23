@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Müşteri QR Menüsü</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+
+    <!-- NAVBAR (TEMİZ VE MOBİL UYUMLU) -->
+    <header class="navbar">
+        <div class="brand">
+            <svg class="brand-icon-svg" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+            </svg>
+            <span>Lezzet Dünyası Restoran</span>
+        </div>
+        <div id="tableBadge" class="table-badge">
+            🪑 Masa 1
+        </div>
+    </header>
+
+    <!-- CONTAINER -->
+    <main class="container">
+        
+        <!-- CANLI SİPARİŞ TAKİP ALANI (SİPARİŞ VERİLDİĞİNDE BURADA GÖRÜNÜR) -->
+        <div id="orderTrackingContainer" style="display: none;">
+            <!-- Canlı takip adımları JS ile render edilecek -->
+        </div>
+
+        <!-- KUTU KUTU GÖRSELLİ KATEGORİ KARTLARI -->
+        <div id="categoryGridBar" class="category-grid-bar">
+            <!-- Kategoriler JS ile gelecek -->
+        </div>
+
+        <!-- ÜRÜN GRID -->
+        <div id="productGrid" class="product-grid">
+            <!-- Ürünler JS ile gelecek -->
+        </div>
+    </main>
+
+    <!-- FLOATING CART BUTTON -->
+    <button id="cartFloatingBtn" class="cart-floating-btn" style="display: none;" onclick="openCartModal()">
+        <span>🛒 Sepetim</span>
+        <span id="cartBadge" class="cart-count-badge">0</span>
+        <span id="cartTotalPrice" style="margin-left: 8px;">0.00 ₺</span>
+    </button>
+
+    <!-- 0. İLK GİRİŞ DİL SEÇİM MODALİ -->
+    <div id="languageModal" class="modal-overlay">
+        <div class="modal-content" style="text-align: center;">
+            <div style="font-size: 3rem; margin-bottom: 12px;">🌐</div>
+            <h2 style="font-size: 1.5rem; margin-bottom: 8px;">Dil Seçin / Select Language</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 24px;">Lütfen menüde kullanmak istediğiniz dili seçin.</p>
+            
+            <div style="display:flex; flex-direction:column; gap: 12px;">
+                <button class="btn-add" style="justify-content: center; padding: 14px; font-size: 1.1rem;" onclick="selectLanguage('tr')">
+                    🇹🇷 Türkçe
+                </button>
+                <button class="btn-add" style="justify-content: center; padding: 14px; font-size: 1.1rem; background: rgba(255,255,255,0.08); color: #fff; box-shadow:none;" onclick="selectLanguage('en')">
+                    🇬🇧 English
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 1. ÜRÜN DETAY & OPSİYON MODALİ -->
+    <div id="productModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalProductTitle" style="font-size: 1.3rem;">Ürün Adı</h3>
+                <button class="modal-close" onclick="closeModal('productModal')">✖</button>
+            </div>
+            <p id="modalProductDesc" style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;"></p>
+            
+            <div style="font-size: 1.5rem; font-weight: 800; color: #fbbf24; margin-bottom: 16px;" id="modalProductPrice">0.00 ₺</div>
+
+            <!-- PIZZA BOYUT SEÇİM ALANI -->
+            <div id="pizzaSizeSection" style="display: none; margin-bottom: 16px;">
+                <div class="option-section-title">🍕 Pizza Boyutu Seçin (Çap & Kişi Sayısı)</div>
+                <div id="pizzaSizeGrid" class="size-options-grid"></div>
+            </div>
+
+            <!-- TATLI EKSTRA OPSİYON ALANI -->
+            <div id="dessertExtrasSection" style="display: none; margin-bottom: 16px;">
+                <div class="option-section-title">🍨 Ekstra Malzemeler (Fiyata Eklenecek)</div>
+                <div id="dessertExtrasList" class="extras-list"></div>
+            </div>
+
+            <!-- ADET SEÇİMİ -->
+            <div style="margin-bottom: 16px;">
+                <label style="display:block; font-size:0.85rem; font-weight:700; color:var(--text-secondary); margin-bottom:6px;">Adet</label>
+                <input type="number" id="modalQuantity" value="1" min="1" max="20" style="width: 100%; font-size: 1.1rem; font-weight: 700;" onchange="updateModalCalculatedPrice()">
+            </div>
+
+            <!-- DİNAMİK ÇİPLER VE ÖZEL NOT -->
+            <div class="note-input-group">
+                <label>✏️ Özel İstek / Not Seçin (Tıklayıp Kaldırabilirsiniz)</label>
+                <div id="quickNotesContainer" class="quick-notes" style="margin-bottom: 12px;"></div>
+                <input type="text" id="modalProductNote" placeholder="Varsa ekstra özel notunuz..." style="width: 100%;">
+            </div>
+
+            <button class="btn-add" style="width: 100%; justify-content: center; margin-top: 24px; padding: 14px; font-size: 1rem;" onclick="confirmAddToCart()">
+                Sepete Ekle
+            </button>
+        </div>
+    </div>
+
+    <!-- 2. SEPET VE PRATİK ÖDEME SEÇENEKLERİ MODALİ -->
+    <div id="cartModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🛒 Sepetiniz</h3>
+                <button class="modal-close" onclick="closeModal('cartModal')">✖</button>
+            </div>
+
+            <div id="cartItemsContainer" style="max-height: 280px; overflow-y: auto; margin-bottom: 20px;"></div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; border-top: 1px solid var(--border-color); padding-top: 16px; margin-bottom: 20px;">
+                <span style="font-size: 1.1rem; font-weight: 700;">Toplam Tutar:</span>
+                <span id="modalCartTotal" style="font-size: 1.4rem; font-weight: 800; color: #fbbf24;">0.00 ₺</span>
+            </div>
+
+            <!-- PRATİK ÖDEME SEÇENEKLERİ (FORM DOLDURMA YOK!) -->
+            <div style="display:flex; flex-direction:column; gap: 12px;">
+                <button class="btn-add" style="justify-content: center; padding: 14px; font-size: 1rem; background: linear-gradient(135deg, var(--primary), #d97706);" onclick="submitOrder('pos')">
+                    ⚡  Pay / Google Pay / Hızlı Kart ile Öde
+                </button>
+                <button class="btn-add" style="justify-content: center; padding: 14px; font-size: 1rem; background: linear-gradient(135deg, var(--success), #047857);" onclick="submitOrder('nakit')">
+                    💵 Masada Garsona Nakit Öde
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

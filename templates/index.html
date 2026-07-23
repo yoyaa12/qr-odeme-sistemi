@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Restoran QR Sipariş & Operasyon Sistemi</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+    <header class="navbar">
+        <div class="brand">
+            <svg class="brand-icon-svg" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+            </svg>
+            <span>Restoran Otomasyon Paneli</span>
+        </div>
+    </header>
+
+    <main class="container" style="max-width: 900px; padding-top: 40px;">
+        <div style="text-align: center; margin-bottom: 40px;">
+            <h1 style="font-size: 2.2rem; margin-bottom: 12px; background: linear-gradient(135deg, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                Hoş Geldiniz!
+            </h1>
+            <p style="color: var(--text-secondary); font-size: 1.1rem;">
+                Test etmek istediğiniz paneli aşağıdaki kartlardan seçerek açabilirsiniz:
+            </p>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px;">
+            
+            <!-- MÜŞTERİ QR MENÜ -->
+            <div class="product-card" style="border-top: 4px solid var(--primary);">
+                <div>
+                    <h3 style="font-size: 1.4rem; margin-bottom: 8px;">📱 Müşteri QR Menü</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; margin-bottom: 16px;">
+                        Müşterinin masadaki QR kodunu okuttuğunda karşılaştığı ekran. Ürün seçimi, pizza boyutları, ekstra tatlı sosları, malzeme çıkarma ve simüle ödeme yapılabilir.
+                    </p>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <a href="/menu?masa=1" class="btn-add" style="justify-content: center;">
+                        🪑 Masa 1 QR Menüsü Aç
+                    </a>
+                    <a href="/menu?masa=2" class="btn-add" style="justify-content: center; background: rgba(255,255,255,0.08); color:#fff; box-shadow:none;">
+                        🪑 Masa 2 QR Menüsü Aç
+                    </a>
+                </div>
+            </div>
+
+            <!-- MUTFAK PANELİ -->
+            <div class="product-card" style="border-top: 4px solid var(--danger);">
+                <div>
+                    <h3 style="font-size: 1.4rem; margin-bottom: 8px;">👨‍🍳 Mutfak Paneli</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; margin-bottom: 16px;">
+                        Müşteri ödemeyi tamamladığı an siparişler sayfa yenilenmeden sesli ve canlı uyarı ile bu ekrana düşer. Hazırlanıyor / Hazır durum güncellenir.
+                    </p>
+                </div>
+                <a href="/mutfak" class="btn-add" style="justify-content: center; background: linear-gradient(135deg, var(--danger), #b91c1c); box-shadow: 0 4px 14px var(--danger-glow);">
+                    🔥 Mutfak Paneline Git
+                </a>
+            </div>
+
+            <!-- GARSON PANELİ -->
+            <div class="product-card" style="border-top: 4px solid var(--success);">
+                <div>
+                    <h3 style="font-size: 1.4rem; margin-bottom: 8px;">🛎️ Garson Paneli</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; margin-bottom: 16px;">
+                        Mutfakta "Hazır" yapılan siparişler canlı olarak garson paneline yeşil renkte düşer. Garson siparişi masaya teslim eder.
+                    </p>
+                </div>
+                <a href="/garson" class="btn-add" style="justify-content: center; background: linear-gradient(135deg, var(--success), #047857); box-shadow: 0 4px 14px var(--success-glow);">
+                    🚀 Garson Paneline Git
+                </a>
+            </div>
+
+            <!-- YÖNETİCİ PANELİ -->
+            <div class="product-card" style="border-top: 4px solid var(--accent);">
+                <div>
+                    <h3 style="font-size: 1.4rem; margin-bottom: 8px;">⚙️ Yönetici Paneli</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; margin-bottom: 16px;">
+                        Kategoriler (Çorbalar, Ana Yemekler, Tatlılar, İçecekler), Ürünler, Fiyatlar ve Masaların yönetildiği admin arayüzü.
+                    </p>
+                </div>
+                <a href="/admin" class="btn-add" style="justify-content: center; background: linear-gradient(135deg, var(--accent), #d97706); box-shadow: 0 4px 14px var(--accent-glow);">
+                    ⚙️ Admin Paneline Git
+                </a>
+            </div>
+
+        </div>
+    </main>
+
+</body>
+</html>

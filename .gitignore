@@ -1,0 +1,35 @@
+# Environment & Credentials (HASSAS BİLGİLER VE AYARLAR)
+.env
+*.env
+*.pem
+*.key
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Python Virtual Environments (Sanal Ortamlar)
+.venv/
+venv/
+env/
+ENV/
+build/
+dist/
+*.egg-info/
+
+# IDE & Editor Settings (Editör Ayarları)
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs & Temporary Files (Loglar ve Geçici Dosyalar)
+*.log
+tmp/
+scratch/
+
+# OS Generated Files (İşletim Sistemi Dosyaları)
+.DS_Store
+Thumbs.db

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yönetici Paneli</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+    <!-- NAVBAR -->
+    <header class="navbar" style="border-bottom: 2px solid var(--accent);">
+        <div class="brand">
+            <span class="brand-icon">⚙️</span>
+            <span>Restoran Yönetici Paneli</span>
+        </div>
+        <a href="/" style="background: rgba(255,255,255,0.1); padding: 6px 12px; border-radius: var(--radius-sm); font-size: 0.85rem;">Ana Ekran</a>
+    </header>
+
+    <main class="container">
+        
+        <!-- SECTION 1: KATEGORİ YÖNETİMİ -->
+        <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 30px;">
+            <h3 style="margin-bottom: 16px;">1. Kategori Yönetimi</h3>
+            
+            <form onsubmit="handleAddCategory(event)" style="display:flex; gap: 12px; margin-bottom: 20px;">
+                <input type="text" id="newCategoryName" placeholder="Kategori Adı (Örn: Başlangıçlar)" style="flex:1;" required>
+                <button type="submit" class="btn-add">+ Kategori Ekle</button>
+            </form>
+
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Kategori Adı</th>
+                        <th>İşlem</th>
+                    </tr>
+                </thead>
+                <tbody id="adminCategoriesTbody"></tbody>
+            </table>
+        </div>
+
+        <!-- SECTION 2: ÜRÜN YÖNETİMİ -->
+        <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 30px;">
+            <h3 style="margin-bottom: 16px;">2. Ürün Yönetimi</h3>
+            
+            <form onsubmit="handleAddProduct(event)" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px;">
+                <select id="adminProdCategorySelect" required></select>
+                <input type="text" id="newProdName" placeholder="Ürün Adı" required>
+                <input type="text" id="newProdDesc" placeholder="Açıklama">
+                <input type="number" step="0.5" id="newProdPrice" placeholder="Fiyat (₺)" required>
+                <input type="number" id="newProdStock" placeholder="Stok (Adet)" value="100">
+                <button type="submit" class="btn-add" style="grid-column: 1/-1; justify-content: center;">+ Yeni Ürün Ekle</button>
+            </form>
+
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Ürün Adı</th>
+                        <th>Kategori</th>
+                        <th>Fiyat</th>
+                        <th>Stok</th>
+                        <th>İşlem</th>
+                    </tr>
+                </thead>
+                <tbody id="adminProductsTbody"></tbody>
+            </table>
+        </div>
+
+        <!-- SECTION 3: MASA YÖNETİMİ -->
+        <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 24px;">
+            <h3 style="margin-bottom: 16px;">3. Masa Yönetimi</h3>
+            
+            <form onsubmit="handleAddMasa(event)" style="display:flex; gap: 12px; margin-bottom: 20px;">
+                <input type="text" id="newTableName" placeholder="Masa Adı (Örn: Masa 5)" style="flex:1;" required>
+                <button type="submit" class="btn-add">+ Masa Ekle</button>
+            </form>
+
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Masa Numarası</th>
+                        <th>QR Kodu</th>
+                        <th>Bağlantı</th>
+                        <th>İşlem</th>
+                    </tr>
+                </thead>
+                <tbody id="adminTablesTbody"></tbody>
+            </table>
+        </div>
+
+    </main>
+
+    <script src="/static/js/admin.js"></script>
+</body>
+</html>
