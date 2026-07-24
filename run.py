@@ -17,6 +17,7 @@ if __name__ == "__main__":
     print(f" - Musteri QR Menusu : http://localhost:{port}/menu?masa=1")
     print(f" - Mutfak Paneli     : http://localhost:{port}/mutfak")
     print(f" - Garson Paneli     : http://localhost:{port}/garson")
+    print(f" - Kasa Paneli       : http://localhost:{port}/kasa")
     print(f" - Yönetici Paneli   : http://localhost:{port}/admin")
     print(f"=======================================================\n")
     

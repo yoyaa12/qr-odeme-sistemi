@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAdminCategories();
     loadAdminProducts();
     loadAdminTables();
+    loadKasaTables();
 });
 
 async function loadAdminCategories() {
@@ -169,4 +170,65 @@ async function deleteTable(id) {
     if (!confirm("Masayı silmek istediğinizden emin misiniz?")) return;
     await fetch(`/api/admin/masalar/${id}`, { method: 'DELETE' });
     loadAdminTables();
+    loadKasaTables();
+}
+
+async function loadKasaTables() {
+    try {
+        const [tablesRes, ordersRes] = await Promise.all([
+            fetch('/api/masalar'),
+            fetch('/api/siparisler')
+        ]);
+        const tables = await tablesRes.json();
+        const orders = await ordersRes.json();
+        
+        const container = document.getElementById('kasaTablesGrid');
+        if (!container) return;
+
+        let html = '';
+        tables.forEach(t => {
+            const masaOrders = orders.filter(o => o.masa_id === t.id && ['garson_onayi_bekliyor', 'nakit_bekliyor', 'odendi_mutfakta', 'garson_onayladi_mutfakta', 'hazirlaniyor', 'hazir'].includes(o.siparis_durumu));
+            const totalBill = masaOrders.reduce((sum, o) => sum + o.toplam_tutar, 0);
+            const isDolu = t.durum === 'dolu' || masaOrders.length > 0;
+
+            html += `
+                <div class="order-card" style="border-color: ${isDolu ? '#f59e0b' : 'rgba(255,255,255,0.1)'};">
+                    <div class="order-header">
+                        <div class="order-table-title">🪑 ${t.masa_no}</div>
+                        <span class="table-badge" style="background:${isDolu ? '#f59e0b' : '#10b981'}; color:#fff; font-weight:800;">
+                            ${isDolu ? '🔴 DOLU (Aktif Masa)' : '🟢 BOŞ'}
+                        </span>
+                    </div>
+                    <div style="margin: 10px 0; font-size:1.1rem; font-weight:800; color:#fbbf24;">
+                        Toplam Adisyon Tutarı: ${totalBill.toFixed(2)} ₺
+                    </div>
+                    <div style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:12px;">
+                        Aktif Sipariş Sayısı: ${masaOrders.length} Adet
+                    </div>
+                    ${isDolu ? `
+                        <button class="btn-status-action btn-danger" style="width:100%; padding:10px; font-weight:800;" onclick="clearTableFromAdmin(${t.id})">
+                            🧹 Masayı Temizle / Hesabı Kapat (CLEAR)
+                        </button>
+                    ` : ''}
+                </div>
+            `;
+        });
+        container.innerHTML = html || '<div style="color:var(--text-muted);">Masa yok.</div>';
+    } catch(e) {
+        console.error("Kasa masaları yüklenemedi:", e);
+    }
+}
+
+async function clearTableFromAdmin(masaId) {
+    if (!confirm("Masa hesabı kapatılacak ve masa sıfırlanacaktır. Onaylıyor musunuz?")) return;
+    try {
+        const res = await fetch(`/api/masalar/${masaId}/clear`, { method: 'POST' });
+        if (res.ok) {
+            loadKasaTables();
+            loadAdminTables();
+            alert("Masa başarıyla temizlendi ve sıfırlandı!");
+        }
+    } catch(e) {
+        alert("Masa sıfırlanamadı.");
+    }
 }

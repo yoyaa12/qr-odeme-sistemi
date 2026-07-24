@@ -85,7 +85,7 @@ async function loadKitchenOrders() {
         const res = await fetch('/api/siparisler');
         const allOrders = await res.json();
         
-        kitchenOrders = allOrders.filter(o => ['odendi_mutfakta', 'hazirlaniyor'].includes(o.siparis_durumu));
+        kitchenOrders = allOrders.filter(o => ['odendi_mutfakta', 'garson_onayladi_mutfakta', 'nakit_tahsil_edildi', 'hazirlaniyor'].includes(o.siparis_durumu));
         renderKitchenOrders();
     } catch (e) {
         console.error("Mutfak siparişleri yüklenemedi:", e);
@@ -96,7 +96,7 @@ function renderKitchenOrders() {
     const grid = document.getElementById('kitchenOrdersGrid');
     if (!grid) return;
 
-    const activeOrders = kitchenOrders.filter(o => ['odendi_mutfakta', 'hazirlaniyor'].includes(o.siparis_durumu));
+    const activeOrders = kitchenOrders.filter(o => ['odendi_mutfakta', 'garson_onayladi_mutfakta', 'nakit_tahsil_edildi', 'hazirlaniyor'].includes(o.siparis_durumu));
 
     if (activeOrders.length === 0) {
         grid.innerHTML = `
@@ -111,7 +111,7 @@ function renderKitchenOrders() {
 
     let html = '';
     activeOrders.forEach(order => {
-        const isNew = order.siparis_durumu === 'odendi_mutfakta';
+        const isNew = order.siparis_durumu === 'odendi_mutfakta' || order.siparis_durumu === 'garson_onayladi_mutfakta' || order.siparis_durumu === 'nakit_tahsil_edildi';
         const isPreparing = order.siparis_durumu === 'hazirlaniyor';
 
         html += `

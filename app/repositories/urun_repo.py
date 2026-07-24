@@ -1,0 +1,31 @@
+from app.database import execute_query, execute_non_query
+from typing import Optional
+
+class UrunRepository:
+    def get_all(self, kategori_id: Optional[int] = None):
+        if kategori_id:
+            query = "SELECT u.*, k.kategori_adi FROM Urunler u JOIN Kategoriler k ON u.kategori_id = k.id WHERE u.kategori_id = ? AND u.aktif_mi = 1"
+            return execute_query(query, (kategori_id,)) or []
+        else:
+            query = "SELECT u.*, k.kategori_adi FROM Urunler u JOIN Kategoriler k ON u.kategori_id = k.id WHERE u.aktif_mi = 1"
+            return execute_query(query) or []
+
+    def get_by_id(self, urun_id: int):
+        query = "SELECT * FROM Urunler WHERE id = ?"
+        return execute_query(query, (urun_id,), fetch_one=True)
+
+    def create(self, kategori_id: int, urun_adi: str, aciklama: str, fiyat: float, gorsel_url: str, stok_miktari: int):
+        query = "INSERT INTO Urunler (kategori_id, urun_adi, aciklama, fiyat, gorsel_url, stok_miktari, aktif_mi) VALUES (?, ?, ?, ?, ?, ?, 1)"
+        return execute_non_query(query, (kategori_id, urun_adi, aciklama, fiyat, gorsel_url, stok_miktari))
+
+    def update(self, urun_id: int, updates: dict):
+        for key, value in updates.items():
+            if value is not None:
+                execute_non_query(f"UPDATE Urunler SET {key} = ? WHERE id = ?", (value, urun_id))
+
+    def update_stock(self, urun_id: int, decrement: int):
+        query = "UPDATE Urunler SET stok_miktari = CASE WHEN stok_miktari >= ? THEN stok_miktari - ? ELSE 0 END WHERE id = ?"
+        execute_non_query(query, (decrement, decrement, urun_id))
+
+    def delete(self, urun_id: int):
+        execute_non_query("DELETE FROM Urunler WHERE id = ?", (urun_id,))

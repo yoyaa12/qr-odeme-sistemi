@@ -69,10 +69,10 @@
         </div>
 
         <!-- SECTION 3: MASA YÖNETİMİ -->
-        <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 24px;">
+        <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 30px;">
             <h3 style="margin-bottom: 16px;">3. Masa Yönetimi</h3>
             
-            <form onsubmit="handleAddMasa(event)" style="display:flex; gap: 12px; margin-bottom: 20px;">
+            <form onsubmit="handleAddTable(event)" style="display:flex; gap: 12px; margin-bottom: 20px;">
                 <input type="text" id="newTableName" placeholder="Masa Adı (Örn: Masa 5)" style="flex:1;" required>
                 <button type="submit" class="btn-add">+ Masa Ekle</button>
             </form>
@@ -89,6 +89,15 @@
                 </thead>
                 <tbody id="adminTablesTbody"></tbody>
             </table>
+        </div>
+
+        <!-- SECTION 4: KASA & HESAP KAPATMA (KASA PANELİ) -->
+        <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 24px;">
+            <h3 style="margin-bottom: 16px;">4. Kasa & Masa Hesabı Kapatma</h3>
+            <p style="color:var(--text-secondary); font-size:0.88rem; margin-bottom:16px;">Yedikten sonra kasada ödeyen müşterilerin hesabını tahsil edip masayı sıfırlayabilirsiniz.</p>
+            <div id="kasaTablesGrid" class="order-cards-grid">
+                <!-- JS ile gelecek -->
+            </div>
         </div>
 
     </main>

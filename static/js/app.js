@@ -34,6 +34,13 @@ const PIZZA_SIZES = [
     { id: 'jumbo', name: 'Jumbo Boy', detail: '40 cm • 3-4 Kişilik', priceDiff: 140.00 }
 ];
 
+// PORSIYON SEÇENEKLERİ (YEMEKLER / IZGARALAR İÇİN)
+const PORTION_OPTIONS = [
+    { id: 'p1', name: '1 Porsiyon', detail: 'Standart Porsiyon', multiplier: 1.0 },
+    { id: 'p1_5', name: '1.5 Porsiyon', detail: '%40 Ekstra Porsiyon', multiplier: 1.40 },
+    { id: 'p2', name: '2 Porsiyon (Çift)', detail: 'Doyurucu Çift Porsiyon', multiplier: 1.80 }
+];
+
 // İÇECEK / YEMEK ÇİPLERİ
 const CUSTOM_CHIPS_MAP = {
     'icecek': [
@@ -241,6 +248,7 @@ function openProductNoteModal(productId) {
 
     state.currentProduct = prod;
     state.selectedSize = PIZZA_SIZES[0];
+    state.selectedPortion = PORTION_OPTIONS[0];
     state.selectedExtras = [];
     state.activeNotes = [];
 
@@ -252,13 +260,24 @@ function openProductNoteModal(productId) {
     const catName = (prod.kategori_adi || '').toLowerCase();
     const prodName = (prod.urun_adi || '').toLowerCase();
 
-    // Pizza Boyutları
+    const isPizza = prodName.includes('pizza') || catName.includes('pizza');
+    const isDish = catName.includes('ana yemek') || catName.includes('izgara') || catName.includes('kebap') || catName.includes('yemek') || prodName.includes('kofte') || prodName.includes('köfte') || prodName.includes('döner') || prodName.includes('doner') || prodName.includes('tavuk') || prodName.includes('et') || prodName.includes('izgara');
+
+    // Pizza Boyutları mi yoksa Yemek Porsiyonları mı?
     const pizzaSection = document.getElementById('pizzaSizeSection');
-    if (prodName.includes('pizza') || catName.includes('pizza') || catName.includes('ana yemek')) {
-        pizzaSection.style.display = 'block';
+    const portionSection = document.getElementById('portionSizeSection');
+
+    if (isPizza) {
+        if (pizzaSection) pizzaSection.style.display = 'block';
+        if (portionSection) portionSection.style.display = 'none';
         renderPizzaSizes();
+    } else if (isDish) {
+        if (pizzaSection) pizzaSection.style.display = 'none';
+        if (portionSection) portionSection.style.display = 'block';
+        renderPortionSizes();
     } else {
-        pizzaSection.style.display = 'none';
+        if (pizzaSection) pizzaSection.style.display = 'none';
+        if (portionSection) portionSection.style.display = 'none';
     }
 
     // Tatlı Ekstraları
@@ -282,7 +301,7 @@ function renderPizzaSizes() {
 
     let html = '';
     PIZZA_SIZES.forEach(size => {
-        const isSelected = state.selectedSize.id === size.id;
+        const isSelected = state.selectedSize && state.selectedSize.id === size.id;
         html += `
             <div class="size-option-card ${isSelected ? 'active' : ''}" onclick="selectPizzaSize('${size.id}')">
                 <div class="size-name">${size.name}</div>
@@ -297,6 +316,33 @@ function renderPizzaSizes() {
 function selectPizzaSize(sizeId) {
     state.selectedSize = PIZZA_SIZES.find(s => s.id === sizeId) || PIZZA_SIZES[0];
     renderPizzaSizes();
+    updateModalCalculatedPrice();
+}
+
+function renderPortionSizes() {
+    const container = document.getElementById('portionSizeGrid');
+    if (!container || !state.currentProduct) return;
+
+    const basePrice = state.currentProduct.fiyat;
+    let html = '';
+    PORTION_OPTIONS.forEach(p => {
+        const isSelected = state.selectedPortion && state.selectedPortion.id === p.id;
+        const portionPrice = basePrice * p.multiplier;
+        const diff = portionPrice - basePrice;
+        html += `
+            <div class="size-option-card ${isSelected ? 'active' : ''}" onclick="selectPortionSize('${p.id}')">
+                <div class="size-name">${p.name}</div>
+                <div class="size-detail">${p.detail}</div>
+                <div class="size-price-diff">${diff > 0 ? `+${diff.toFixed(2)} ₺ (${portionPrice.toFixed(2)} ₺)` : 'Standart'}</div>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
+
+function selectPortionSize(portionId) {
+    state.selectedPortion = PORTION_OPTIONS.find(p => p.id === portionId) || PORTION_OPTIONS[0];
+    renderPortionSizes();
     updateModalCalculatedPrice();
 }
 
@@ -395,9 +441,13 @@ function updateModalCalculatedPrice() {
     let basePrice = state.currentProduct.fiyat;
     const catName = (state.currentProduct.kategori_adi || '').toLowerCase();
     const prodName = (state.currentProduct.urun_adi || '').toLowerCase();
-    
-    if ((prodName.includes('pizza') || catName.includes('pizza')) && state.selectedSize) {
+    const isPizza = prodName.includes('pizza') || catName.includes('pizza');
+    const isDish = catName.includes('ana yemek') || catName.includes('izgara') || catName.includes('kebap') || catName.includes('yemek') || prodName.includes('kofte') || prodName.includes('köfte') || prodName.includes('döner') || prodName.includes('doner') || prodName.includes('tavuk') || prodName.includes('et') || prodName.includes('izgara');
+
+    if (isPizza && state.selectedSize) {
         basePrice += state.selectedSize.priceDiff;
+    } else if (isDish && state.selectedPortion) {
+        basePrice = basePrice * state.selectedPortion.multiplier;
     }
 
     state.selectedExtras.forEach(ex => {
@@ -424,10 +474,17 @@ function confirmAddToCart() {
 
     const catName = (state.currentProduct.kategori_adi || '').toLowerCase();
     const prodName = (state.currentProduct.urun_adi || '').toLowerCase();
-    
-    if ((prodName.includes('pizza') || catName.includes('pizza')) && state.selectedSize) {
+    const isPizza = prodName.includes('pizza') || catName.includes('pizza');
+    const isDish = catName.includes('ana yemek') || catName.includes('izgara') || catName.includes('kebap') || catName.includes('yemek') || prodName.includes('kofte') || prodName.includes('köfte') || prodName.includes('döner') || prodName.includes('doner') || prodName.includes('tavuk') || prodName.includes('et') || prodName.includes('izgara');
+
+    if (isPizza && state.selectedSize) {
         calculatedUnitPrice += state.selectedSize.priceDiff;
         fullTitle += ` (${state.selectedSize.name})`;
+    } else if (isDish && state.selectedPortion) {
+        calculatedUnitPrice = calculatedUnitPrice * state.selectedPortion.multiplier;
+        if (state.selectedPortion.multiplier !== 1.0) {
+            fullTitle += ` (${state.selectedPortion.name})`;
+        }
     }
 
     if (state.selectedExtras.length > 0) {
@@ -537,14 +594,37 @@ function openPaymentCheckout(method) {
     const btnConfirm = document.getElementById('btnConfirmFinalPayment');
 
     if (method === 'pos') {
-        if (title) title.innerText = '💳 Kart /  Pay ile Ödeme ve Sipariş Onayı';
+        if (title) title.innerText = '💳 Online Kart İle Ödeme ve Sipariş Onayı';
         if (cardSection) cardSection.style.display = 'block';
         if (cashSection) cashSection.style.display = 'none';
-        if (btnConfirm) btnConfirm.innerText = '✅ Ödemeyi Yap ve Siparişi Tamamla';
+        if (btnConfirm) btnConfirm.innerText = '✅ Ödemeyi Yap ve Siparişi Anında Gönder';
+    } else if (method === 'garson_kasada') {
+        if (title) title.innerText = '🛎️ Garson Onaylı Sipariş (Yedikten Sonra Kasada Öde)';
+        if (cardSection) cardSection.style.display = 'none';
+        if (cashSection) {
+            cashSection.style.display = 'block';
+            cashSection.innerHTML = `
+                <div style="text-align:center; padding:12px; background:rgba(59,130,246,0.1); border:1px solid #3b82f6; border-radius:var(--radius-md);">
+                    <div style="font-size:1.5rem; margin-bottom:4px;">🛎️</div>
+                    <div style="font-weight:700; color:#3b82f6;">Yedikten Sonra Kasada Ödeme Modu</div>
+                    <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">Garson masanıza gelip fiziksel onay verdikten sonra siparişiniz mutfağa aktarılacaktır. Ödemenizi yemeğin sonunda Kasada yapabilirsiniz.</div>
+                </div>
+            `;
+        }
+        if (btnConfirm) btnConfirm.innerText = '📩 Garson Onayı İle Siparişi Gönder';
     } else {
         if (title) title.innerText = '💵 Masada Nakit Ödeme (Garson İsteği)';
         if (cardSection) cardSection.style.display = 'none';
-        if (cashSection) cashSection.style.display = 'block';
+        if (cashSection) {
+            cashSection.style.display = 'block';
+            cashSection.innerHTML = `
+                <div style="text-align:center; padding:12px; background:rgba(245,158,11,0.1); border:1px solid #f59e0b; border-radius:var(--radius-md);">
+                    <div style="font-size:1.5rem; margin-bottom:4px;">🏃‍♂️💵</div>
+                    <div style="font-weight:700; color:#f59e0b;">Masada Nakit Tahsilat</div>
+                    <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">Garsonumuz siparişinizi alıp nakit tahsilatı yapmak üzere masanıza gelecektir.</div>
+                </div>
+            `;
+        }
         if (btnConfirm) btnConfirm.innerText = '📩 Siparişi Gönder (Garson Masanıza Gelecek)';
     }
 
@@ -554,11 +634,15 @@ function openPaymentCheckout(method) {
 async function confirmFinalOrder() {
     const actionBox = document.getElementById('checkoutActionBox');
     const originalHTML = actionBox.innerHTML;
-    const isCash = state.selectedPaymentMethod === 'nakit';
+    const method = state.selectedPaymentMethod;
+
+    let text = '⏳ Ödemeniz İşleniyor ve Mutfak Onayına Gönderiliyor...';
+    if (method === 'garson_kasada') text = '⏳ Siparişiniz İletiliyor... Garson Masaya Yönlendiriliyor...';
+    else if (method === 'nakit') text = '⏳ Nakit İsteği İletiliyor... Garson Gelecek...';
 
     actionBox.innerHTML = `
         <div style="text-align:center; padding:14px; font-weight:800; color:var(--primary); font-size:1rem;">
-            ${isCash ? '⏳ Siparişiniz İletiliyor... Garson Masanıza Yönlendiriliyor...' : '⏳ Ödemeniz İşleniyor ve Mutfak Onayına Gönderiliyor...'}
+            ${text}
         </div>
     `;
 
@@ -603,6 +687,8 @@ async function executeOrderSubmit(odemeYontemi) {
 
             if (odemeYontemi === 'pos') {
                 showToast("💳 Ödemeniz onaylandı ve siparişiniz alındı!");
+            } else if (odemeYontemi === 'garson_kasada') {
+                showToast("🛎️ Siparişiniz iletildi! Garsonumuz masanıza gelip onaylayacaktır.");
             } else {
                 showToast("💵 Siparişiniz alındı! Garsonumuz nakit ödeme için masanıza geliyor.");
             }
@@ -640,7 +726,17 @@ function renderOrderTrackingUI() {
     
     let currentStatusHTML = '';
 
-    if (status === 'nakit_bekliyor' || isCashPending) {
+    if (status === 'garson_onayi_bekliyor') {
+        currentStatusHTML = `
+            <div class="single-status-banner active-step-received" style="border-color: #3b82f6; background: rgba(59, 130, 246, 0.15);">
+                <div class="status-icon-large">🛎️🏃‍♂️</div>
+                <div class="status-info">
+                    <div class="status-title-main" style="color:#3b82f6;">Garson Onayı Bekleniyor</div>
+                    <div class="status-sub-desc">Garsonumuz masadaki varlığınızı ve siparişi fiziken teyit etmek üzere masanıza geliyor. Garson onay verdikten sonra siparişiniz mutfağa iletilecektir. Ödemeyi yemeğin sonunda KASADA yapabilirsiniz!</div>
+                </div>
+            </div>
+        `;
+    } else if (status === 'nakit_bekliyor' || isCashPending) {
         currentStatusHTML = `
             <div class="single-status-banner active-step-received" style="border-color: #fbbf24; background: rgba(245, 158, 11, 0.15);">
                 <div class="status-icon-large">🏃‍♂️💵</div>
@@ -656,7 +752,7 @@ function renderOrderTrackingUI() {
                 <div class="status-icon-large">✅</div>
                 <div class="status-info">
                     <div class="status-title-main">Siparişiniz Alındı</div>
-                    <div class="status-sub-desc">Ödemeniz Onaylandı • Mutfak onayına sunuldu.</div>
+                    <div class="status-sub-desc">Ödemeniz Alındı • Şeflerimiz siparişinizi hazırlamaya başladı! 👨‍🍳</div>
                 </div>
             </div>
         `;
@@ -739,18 +835,7 @@ function dismissTrackingUI() {
 
 function showToast(message) {
     const toast = document.createElement('div');
-    toast.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: linear-gradient(135deg, #f59e0b, #d97706);
-        color: #fff;
-        padding: 12px 24px;
-        border-radius: 12px;
-        font-weight: 700;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-        z-index: 9999;
-    `;
+    toast.className = 'toast-notification';
     toast.innerText = message;
     document.body.appendChild(toast);
     setTimeout(() => { toast.remove(); }, 3500);

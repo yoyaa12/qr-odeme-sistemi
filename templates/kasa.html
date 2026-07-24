@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Kasa Paneli - Tahsilat & Masa Hesabı Kapatma</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+
+    <!-- NAVBAR -->
+    <header class="navbar" style="border-bottom: 2px solid var(--primary);">
+        <div class="brand">
+            <span style="font-size: 1.5rem;">💳</span>
+            <span>Kasa & Tahsilat Paneli</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <span id="socketStatusBadge" style="font-size: 0.85rem; color: var(--danger); font-weight: 700;">🔴 Bağlantı Kuruluyor...</span>
+            <a href="/" style="background: rgba(255,255,255,0.1); padding: 6px 12px; border-radius: var(--radius-sm); font-size: 0.85rem;">Ana Ekran</a>
+        </div>
+    </header>
+
+    <!-- CONTAINER -->
+    <main class="container">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+            <h2>💰 Aktif Masa Adisyonları & Kasada Ödeme Tahsilatı</h2>
+            <span style="color: var(--text-secondary); font-size: 0.9rem;">Yedikten sonra kasada ödeyen müşterilerin ödemesini tahsil edip masayı kapatabilirsiniz.</span>
+        </div>
+
+        <!-- KASA MASA KARTLARI GRID -->
+        <div id="kasaGrid" class="order-cards-grid">
+            <!-- JS ile gelecek -->
+        </div>
+    </main>
+
+    <script src="/static/js/kasa.js"></script>
+</body>
+</html>

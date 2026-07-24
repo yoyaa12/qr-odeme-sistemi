@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Müşteri QR Menüsü</title>
     <link rel="stylesheet" href="/static/css/style.css">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
@@ -90,6 +90,12 @@
                 <div id="pizzaSizeGrid" class="size-options-grid"></div>
             </div>
 
+            <!-- PORSIYON SEÇİM ALANI (YEMEKLER İÇİN) -->
+            <div id="portionSizeSection" style="display: none; margin-bottom: 16px;">
+                <div class="option-section-title">🍽️ Porsiyon Miktarı Seçin</div>
+                <div id="portionSizeGrid" class="size-options-grid"></div>
+            </div>
+
             <!-- TATLI EKSTRA OPSİYON ALANI -->
             <div id="dessertExtrasSection" style="display: none; margin-bottom: 16px;">
                 <div class="option-section-title">🍨 Ekstra Malzemeler (Fiyata Eklenecek)</div>
@@ -132,10 +138,13 @@
 
             <!-- ÖDEME YÖNTEMİ SEÇENEKLERİ -->
             <div style="display:flex; flex-direction:column; gap: 12px;">
-                <button class="btn-add" style="justify-content: center; padding: 14px; font-size: 1rem; background: linear-gradient(135deg, var(--primary), #d97706);" onclick="openPaymentCheckout('pos')">
-                    ⚡  Pay / Google Pay / Hızlı Kart ile Öde
+                <button class="btn-add" style="justify-content: center; padding: 14px; font-size: 0.95rem; background: linear-gradient(135deg, var(--primary), #d97706);" onclick="openPaymentCheckout('pos')">
+                    ⚡ Online Kart / Masterpass İle Şimdi Öde (Anında Mutfağa)
                 </button>
-                <button class="btn-add" style="justify-content: center; padding: 14px; font-size: 1rem; background: linear-gradient(135deg, var(--success), #047857);" onclick="openPaymentCheckout('nakit')">
+                <button class="btn-add" style="justify-content: center; padding: 14px; font-size: 0.95rem; background: linear-gradient(135deg, #3b82f6, #1d4ed8);" onclick="openPaymentCheckout('garson_kasada')">
+                    🛎️ Garson Onayı İle Sipariş Ver (Yedikten Sonra Kasada Öde)
+                </button>
+                <button class="btn-add" style="justify-content: center; padding: 14px; font-size: 0.95rem; background: linear-gradient(135deg, var(--success), #047857);" onclick="openPaymentCheckout('nakit')">
                     💵 Masada Garsona Nakit Öde
                 </button>
             </div>

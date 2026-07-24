@@ -18,6 +18,12 @@
             <span>Garson Operasyon Paneli</span>
         </div>
         <div style="display: flex; align-items: center; gap: 12px;">
+            <div id="activeGarsonBadge" style="background: rgba(16, 185, 129, 0.15); border: 1px solid var(--success); color: #34d399; font-size: 0.85rem; padding: 6px 12px; border-radius: var(--radius-sm); cursor: pointer; font-weight:600;" onclick="openGarsonPinModal()">
+                🔑 Garson Giriş Yap / Şifre Değiştir
+            </div>
+            <button class="btn-add" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); font-size: 0.88rem; padding: 8px 14px; border-radius: var(--radius-md);" onclick="window.toggleFloorMapModal()">
+                🗺️ Kuşbakışı Masa Haritası (Kroki)
+            </button>
             <span id="socketStatusBadge" style="font-size: 0.85rem; color: var(--danger); font-weight: 700;">🔴 Bağlantı Kuruluyor...</span>
             <a href="/" style="background: rgba(255,255,255,0.1); padding: 6px 12px; border-radius: var(--radius-sm); font-size: 0.85rem;">Ana Ekran</a>
         </div>
@@ -25,9 +31,116 @@
 
     <!-- CONTAINER -->
     <main class="container">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
             <h2>🚀 Masalar & Teslimat Bekleyen Siparişler</h2>
-            <span style="color: var(--text-secondary); font-size: 0.9rem;">Mutfakta "Hazır" yapılan yemekler yeşil renkte uyarır.</span>
+        </div>
+
+        <!-- 6 HANELİ GARSON PIN GİRİŞ MODALİ (VEGA ŞEFİM TARZI NUMPAD) -->
+        <div id="garsonPinModal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 380px; text-align: center; border-top: 4px solid var(--primary); padding: 24px;">
+                <div class="modal-header" style="justify-content: center; position: relative; border-bottom: none; padding-bottom: 0;">
+                    <h3 style="font-size: 1.25rem;">🔑 6 Haneli Garson PIN Girişi</h3>
+                    <button class="modal-close" onclick="closeGarsonPinModal()" style="position: absolute; right: 0; top: -5px;">✖</button>
+                </div>
+                
+                <p id="pinModalSubtext" style="font-size: 0.85rem; color: var(--text-secondary); margin: 8px 0 16px 0;">
+                    İşlem yapabilmek için 6 haneli garson PIN kodunuzu giriniz.
+                </p>
+
+                <!-- PIN Slot Göstergeleri -->
+                <div class="pin-display-container">
+                    <div class="pin-slot" id="pinSlot1"></div>
+                    <div class="pin-slot" id="pinSlot2"></div>
+                    <div class="pin-slot" id="pinSlot3"></div>
+                    <div class="pin-slot" id="pinSlot4"></div>
+                    <div class="pin-slot" id="pinSlot5"></div>
+                    <div class="pin-slot" id="pinSlot6"></div>
+                </div>
+                <div id="pinErrorMsg" class="pin-error-msg" style="display:none;"></div>
+
+                <!-- 3x4 DOKUNMATİK NUMPAD -->
+                <div class="numpad-grid">
+                    <button class="numpad-btn" onclick="pressPinDigit('1')">1</button>
+                    <button class="numpad-btn" onclick="pressPinDigit('2')">2</button>
+                    <button class="numpad-btn" onclick="pressPinDigit('3')">3</button>
+                    <button class="numpad-btn" onclick="pressPinDigit('4')">4</button>
+                    <button class="numpad-btn" onclick="pressPinDigit('5')">5</button>
+                    <button class="numpad-btn" onclick="pressPinDigit('6')">6</button>
+                    <button class="numpad-btn" onclick="pressPinDigit('7')">7</button>
+                    <button class="numpad-btn" onclick="pressPinDigit('8')">8</button>
+                    <button class="numpad-btn" onclick="pressPinDigit('9')">9</button>
+                    <button class="numpad-btn btn-clear" onclick="clearPin()">C</button>
+                    <button class="numpad-btn" onclick="pressPinDigit('0')">0</button>
+                    <button class="numpad-btn btn-backspace" onclick="backspacePin()">⌫</button>
+                </div>
+
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:16px; background: rgba(255,255,255,0.04); padding: 8px; border-radius: var(--radius-sm);">
+                    💡 Tanımlı Garson PIN'leri: <br><strong>Yiğit: 132167</strong> • <strong>Berat: 123456</strong> • <strong>Ahmet: 654321</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- KUŞBAKIŞI MASA HARİTASI (KROKİ) MODALİ -->
+        <div id="floorMapModal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 900px; width: 95%;">
+                <div class="modal-header">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <span style="font-size: 1.5rem;">🗺️</span>
+                        <div>
+                            <h3>Restoran Kuşbakışı Masa Kroki Haritası</h3>
+                            <div style="font-size:0.78rem; color:var(--text-secondary);">Masaların canlı durumlarını görün ve harita üzerinden masaya tıklayın.</div>
+                        </div>
+                    </div>
+                    <button class="modal-close" onclick="toggleFloorMapModal()">✖</button>
+                </div>
+
+                <div class="floor-map-container">
+                    <div class="floor-zones-grid">
+                        <!-- Teras / Bahçe Bölgesi -->
+                        <div class="floor-zone-box">
+                            <div class="floor-zone-header">
+                                <span>🌿 BAHÇE & TERAS BÖLGESİ</span>
+                                <span style="font-size: 0.75rem; color: var(--text-muted);">Ön Cephe</span>
+                            </div>
+                            <div class="floor-tables-layout" id="zoneTerraceTables">
+                                <!-- JS ile gelecek -->
+                            </div>
+                        </div>
+
+                        <!-- Ana Salon / İç Mekan Bölgesi -->
+                        <div class="floor-zone-box">
+                            <div class="floor-zone-header">
+                                <span>🏛️ ANA SALON (İÇ MEKAN)</span>
+                                <span style="font-size: 0.75rem; color: var(--text-muted);">Orta Alan</span>
+                            </div>
+                            <div class="floor-tables-layout" id="zoneIndoorTables">
+                                <!-- JS ile gelecek -->
+                            </div>
+                        </div>
+
+                        <!-- VIP / ÜST KAT BÖLGESİ -->
+                        <div class="floor-zone-box">
+                            <div class="floor-zone-header">
+                                <span>👑 VIP & ÜST KAT</span>
+                                <span style="font-size: 0.75rem; color: var(--text-muted);">Sessiz Bölge</span>
+                            </div>
+                            <div class="floor-tables-layout" id="zoneVipTables">
+                                <!-- JS ile gelecek -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 16px; padding-top:12px; border-top:1px solid var(--border-color); font-size:0.82rem; flex-wrap:wrap; gap:8px;">
+                    <div style="display:flex; gap:12px; align-items:center;">
+                        <span><span style="color:#10b981;">🟢</span> Boş Masa</span>
+                        <span><span style="color:#f59e0b;">🟡</span> Nakit Ödeme Bekleyen</span>
+                        <span><span style="color:#6366f1;">🔵</span> Mutfakta Hazır (Teslim Et)</span>
+                        <span><span style="color:#ef4444;">🔴</span> Dolu / Hazırlanıyor</span>
+                    </div>
+                    <button class="btn-add" style="padding:8px 16px; font-size:0.85rem;" onclick="toggleFloorMapModal()">Kapat</button>
+                </div>
+            </div>
         </div>
 
         <!-- WAITER DASHBOARD GRID -->
