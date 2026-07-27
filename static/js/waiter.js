@@ -3,10 +3,12 @@
 // ==========================================================================
 
 let waiterOrders = [];
+let allRawOrders = [];
 let tables = [];
 let currentPinDigits = [];
 let activeGarson = null;
 let pendingActionCallback = null;
+let activeBrowsingTables = {}; // { masa_id: { masa_no: 'Masa 1', time: Date.now() } }
 
 function playWaiterBellSound() {
     try {
@@ -45,6 +47,33 @@ document.addEventListener('DOMContentLoaded', () => {
         updateWaiterSocketBadge(false);
     });
 
+    // Müşteri QR Menüyü Açtığında (Masa Oturumu Başladı)
+    socket.on('garson_musteri_geldi', (data) => {
+        showWaiterToast(`👋 MÜŞTERİ GELDİ! ${data.masa_no} menüyü inceliyor.`);
+        if (data && data.masa_id) {
+            if (!activeBrowsingTables[data.masa_id]) {
+                activeBrowsingTables[data.masa_id] = { masa_no: data.masa_no, time: Date.now(), item_count: 0, last_item: '' };
+            }
+            renderWaiterDashboard();
+        }
+    });
+
+    // Müşteri Sepete Ürün Eklediğinde
+    socket.on('garson_musteri_urun_secti', (data) => {
+        if (data && data.masa_id) {
+            if (data.item_count > 0 && (!activeBrowsingTables[data.masa_id] || activeBrowsingTables[data.masa_id].item_count === 0)) {
+                showWaiterToast(`📖 MENÜ İNCELENİYOR! ${data.masa_no} sepete ürün ekledi (${data.last_item}).`);
+            }
+            activeBrowsingTables[data.masa_id] = {
+                masa_no: data.masa_no,
+                time: Date.now(),
+                item_count: data.item_count,
+                last_item: data.last_item
+            };
+            renderWaiterDashboard();
+        }
+    });
+
     // Mutfak "Hazır" Yaptığında
     socket.on('durum_guncellendi', (data) => {
         if (data.yeni_durum === 'hazir') {
@@ -71,6 +100,12 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('nakit_odendi', () => loadWaiterData());
     socket.on('yeni_siparis', () => loadWaiterData());
     socket.on('masa_durumu_degisti', () => loadWaiterData());
+    socket.on('masa_temizlendi', (data) => {
+        if (data && data.masa_id) {
+            delete activeBrowsingTables[data.masa_id];
+        }
+        loadWaiterData();
+    });
 
     // Klavye ile PIN Girme Desteği
     document.addEventListener('keydown', (e) => {
@@ -90,28 +125,22 @@ document.addEventListener('DOMContentLoaded', () => {
 // -------------------------------------------------------------
 // 6 HANELİ GARSON PIN YÖNETİMİ & NUMPAD LOGIC
 // -------------------------------------------------------------
+// -------------------------------------------------------------
+// 6 HANELİ GARSON PIN YÖNETİMİ & NUMPAD LOGIC (HER İŞLEMDE PIN SORULUR)
+// -------------------------------------------------------------
 function restoreGarsonSession() {
-    try {
-        const saved = localStorage.getItem('activeGarsonSession');
-        if (saved) {
-            activeGarson = JSON.parse(saved);
-            updateGarsonBadge();
-        }
-    } catch(e) {}
+    // Statik kalıcı oturum tutulmaz, her işlemde PIN sorulur!
+    localStorage.removeItem('activeGarsonSession');
+    activeGarson = null;
+    updateGarsonBadge();
 }
 
 function updateGarsonBadge() {
     const badge = document.getElementById('activeGarsonBadge');
     if (badge) {
-        if (activeGarson) {
-            badge.innerHTML = `👤 Garson: <strong>${activeGarson.garson_adi}</strong> (Oturum Açık)`;
-            badge.style.borderColor = 'var(--success)';
-            badge.style.color = '#34d399';
-        } else {
-            badge.innerHTML = `🔑 Garson Giriş Yap / Şifre Değiştir`;
-            badge.style.borderColor = 'var(--primary)';
-            badge.style.color = 'var(--primary)';
-        }
+        badge.innerHTML = `🔑 Her İşlemde Garson PIN Sorulur`;
+        badge.style.borderColor = 'var(--primary)';
+        badge.style.color = 'var(--primary)';
     }
 }
 
@@ -159,14 +188,15 @@ window.backspacePin = function() {
 
 function updatePinDisplay() {
     for (let i = 1; i <= 6; i++) {
-        const slot = document.getElementById(`pinSlot${i}`);
-        if (slot) {
+        const slot = document.getElementById(`pinSlot1`); // slot reference
+        const currentSlot = document.getElementById(`pinSlot${i}`);
+        if (currentSlot) {
             if (i <= currentPinDigits.length) {
-                slot.classList.add('filled');
-                slot.innerText = '•'; // Şifre noktası
+                currentSlot.classList.add('filled');
+                currentSlot.innerText = '•';
             } else {
-                slot.classList.remove('filled', 'success', 'error');
-                slot.innerText = '';
+                currentSlot.classList.remove('filled', 'success', 'error');
+                currentSlot.innerText = '';
             }
         }
     }
@@ -192,18 +222,16 @@ async function submitGarsonPin() {
                 if (slot) slot.classList.add('success');
             }
 
-            activeGarson = data.garson;
-            localStorage.setItem('activeGarsonSession', JSON.stringify(activeGarson));
-            updateGarsonBadge();
-
-            // ÖNEMLİ: Callback fonksiyonunu modal kapatılmadan ÖNCE yerel değişkene alıyoruz!
+            const person = data.garson; // { garson_adi: 'Yiğit' / 'Berat' / 'Ahmet', rol: 'garson' / 'admin' }
+            activeGarson = person;
+            updateActiveGarsonBadge();
             const actionToExecute = pendingActionCallback;
 
             setTimeout(() => {
                 closeGarsonPinModal();
-                showWaiterToast(`Hoş geldin ${activeGarson.garson_adi}! İşlem yapılıyor... 🚀`);
+                showWaiterToast(`🔑 PIN Doğrulandı (${person.garson_adi}) - İşlem yapılıyor... 🚀`);
                 if (typeof actionToExecute === 'function') {
-                    actionToExecute(activeGarson);
+                    actionToExecute(person);
                 }
             }, 300);
         } else {
@@ -255,93 +283,21 @@ async function loadWaiterData() {
             fetch('/api/masalar')
         ]);
         
-        const allOrders = await ordersRes.json();
+        allRawOrders = await ordersRes.json();
         tables = await tablesRes.json();
 
-        waiterOrders = allOrders.filter(o => ['garson_onayi_bekliyor', 'nakit_bekliyor', 'odendi_mutfakta', 'garson_onayladi_mutfakta', 'hazirlaniyor', 'hazir'].includes(o.siparis_durumu));
+        tables.forEach(t => {
+            if (t.secim_durumu) {
+                activeBrowsingTables[t.id] = t.secim_durumu;
+            }
+        });
+
+        waiterOrders = allRawOrders.filter(o => ['garson_onayi_bekliyor', 'nakit_bekliyor', 'odendi_mutfakta', 'garson_onayladi_mutfakta', 'hazirlaniyor', 'hazir'].includes(o.siparis_durumu));
         renderWaiterDashboard();
-        renderFloorMap();
     } catch (e) {
         console.error("Garson verileri yüklenemedi:", e);
     }
 }
-
-window.toggleFloorMapModal = function() {
-    const modal = document.getElementById('floorMapModal');
-    if (modal) {
-        modal.classList.toggle('active');
-        if (modal.classList.contains('active')) {
-            renderFloorMap();
-        }
-    }
-};
-
-window.renderFloorMap = async function() {
-    const terraceContainer = document.getElementById('zoneTerraceTables');
-    const indoorContainer = document.getElementById('zoneIndoorTables');
-    const vipContainer = document.getElementById('zoneVipTables');
-
-    if (!terraceContainer || !indoorContainer || !vipContainer) return;
-
-    if (!tables || tables.length === 0) {
-        try {
-            const res = await fetch('/api/masalar');
-            tables = await res.json();
-        } catch(e) {}
-    }
-
-    let terraceHTML = '';
-    let indoorHTML = '';
-    let vipHTML = '';
-
-    tables.forEach((table, index) => {
-        const activeOrder = waiterOrders.find(o => o.masa_id === table.id && ['garson_onayi_bekliyor', 'nakit_bekliyor', 'odendi_mutfakta', 'garson_onayladi_mutfakta', 'hazirlaniyor', 'hazir'].includes(o.siparis_durumu));
-        
-        let statusClass = 'status-bos';
-        let statusText = '🟢 Boş';
-        
-        if (activeOrder) {
-            if (activeOrder.siparis_durumu === 'garson_onayi_bekliyor') {
-                statusClass = 'status-nakit_bekliyor';
-                statusText = '🛎️ Onay Bekliyor';
-            } else if (activeOrder.siparis_durumu === 'nakit_bekliyor' || (activeOrder.odeme_yontemi === 'nakit' && activeOrder.odeme_durumu !== 'odendi')) {
-                statusClass = 'status-nakit_bekliyor';
-                statusText = '🟡 Nakit Bekliyor';
-            } else if (activeOrder.siparis_durumu === 'hazir') {
-                statusClass = 'status-hazir';
-                statusText = '🔵 Mutfakta Hazır';
-            } else {
-                statusClass = 'status-dolu';
-                statusText = '🔴 Sipariş Var';
-            }
-        }
-
-        const tableCardHTML = `
-            <div class="table-node-card ${statusClass}" onclick="focusOrderCard(${activeOrder ? activeOrder.id : null})">
-                <div class="table-node-number">🪑 ${table.masa_no}</div>
-                <div class="table-node-badge">${statusText}</div>
-            </div>
-        `;
-
-        if (index % 3 === 0) {
-            terraceHTML += tableCardHTML;
-        } else if (index % 3 === 1) {
-            indoorHTML += tableCardHTML;
-        } else {
-            vipHTML += tableCardHTML;
-        }
-    });
-
-    terraceContainer.innerHTML = terraceHTML || '<div style="font-size:0.75rem; color:var(--text-muted);">Masa yok</div>';
-    indoorContainer.innerHTML = indoorHTML || '<div style="font-size:0.75rem; color:var(--text-muted);">Masa yok</div>';
-    vipContainer.innerHTML = vipHTML || '<div style="font-size:0.75rem; color:var(--text-muted);">Masa yok</div>';
-};
-
-window.focusOrderCard = function(orderId) {
-    requireGarsonPin((garson) => {
-        toggleFloorMapModal();
-    });
-};
 
 function renderWaiterDashboard() {
     const container = document.getElementById('waiterDashboardGrid');
@@ -349,7 +305,16 @@ function renderWaiterDashboard() {
 
     const activeOrders = waiterOrders.filter(o => ['garson_onayi_bekliyor', 'nakit_bekliyor', 'odendi_mutfakta', 'garson_onayladi_mutfakta', 'hazirlaniyor', 'hazir'].includes(o.siparis_durumu));
 
-    if (activeOrders.length === 0) {
+    const occupiedTableIds = allRawOrders
+        .filter(o => o.odeme_durumu !== 'odendi' && ['garson_onayi_bekliyor', 'nakit_bekliyor', 'odendi_mutfakta', 'garson_onayladi_mutfakta', 'hazirlaniyor', 'hazir', 'teslim_edildi'].includes(o.siparis_durumu))
+        .map(o => o.masa_id);
+
+    const browsingTableIds = Object.keys(activeBrowsingTables).filter(id => {
+        const masaId = parseInt(id);
+        return !occupiedTableIds.includes(masaId);
+    });
+
+    if (activeOrders.length === 0 && browsingTableIds.length === 0) {
         container.innerHTML = `
             <div style="grid-column: 1/-1; text-align: center; padding: 60px; color: var(--text-muted);">
                 <div style="font-size: 3rem; margin-bottom: 12px;">🛎️</div>
@@ -425,14 +390,15 @@ function renderWaiterDashboard() {
         html += `
             <div class="order-card" style="${borderStyle}">
                 <div class="order-header">
-                    <div>
+                    <div class="order-title-wrapper">
                         <div class="order-table-title">🪑 ${group.masa_no}</div>
-                        <div class="order-code">Toplam Masa Hesabı: ${group.total_amount.toFixed(2)} ₺</div>
-                    </div>
-                    <div style="text-align: right;">
                         <span class="table-badge" style="background: ${badgeColor}; font-weight:800;">
                             ${badgeText}
                         </span>
+                    </div>
+                    <div class="order-total-bar">
+                        <span>Toplam Masa Hesabı:</span>
+                        <strong>${group.total_amount.toFixed(2)} ₺</strong>
                     </div>
                 </div>
 
@@ -442,11 +408,14 @@ function renderWaiterDashboard() {
                             🛎️ MASADAN SİPARİŞ ONAY TALEBİ (${group.total_amount.toFixed(2)} ₺)
                         </div>
                         <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 10px;">
-                            Masadan yeni sipariş verildi. Masaya gidip PIN doğrulama ile tek tıkla mutfağa aktarınız.
+                            Masadan yeni sipariş verildi. Garson olarak siparişi kontrol edip onaylayınız veya düzenleyiniz.
                         </div>
                         <div style="display:flex; gap: 8px; flex-wrap: wrap;">
                             <button class="btn-status-action btn-success" style="padding: 8px 14px; font-size: 0.88rem; flex:1;" onclick="approveTableOrdersWithPin(${group.masa_id})">
-                                ✅ Masadaki Tüm Siparişleri Doğrula & Mutfağa Gönder
+                                ✅ Onayla & Mutfağa Gönder
+                            </button>
+                            <button class="btn-status-action btn-warning" style="padding: 8px 14px; font-size: 0.88rem;" onclick="openEditOrderModalForTable(${group.masa_id})">
+                                ✏️ Siparişi Düzenle
                             </button>
                         </div>
                     </div>
@@ -486,19 +455,43 @@ function renderWaiterDashboard() {
         html += `
                 </div>
 
-                <div style="display:flex; flex-direction:column; gap: 8px; margin-top: 10px;">
+                <div style="display:flex; flex-direction:column; gap: 8px; margin-top: 12px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 10px;">
                     ${group.has_ready ? `
-                        <button class="btn-status-action btn-success" onclick="deliverTableOrdersWithPin(${group.masa_id})">
-                            🚀 Masaya Teslim Et (Siparişi Kapat)
+                        <button class="btn-status-action btn-success" style="padding: 12px; font-weight: 800; font-size: 0.95rem;" onclick="deliverTableOrdersDirect(${group.masa_id})">
+                            🚀 Masaya Teslim Et
                         </button>
                     ` : (group.has_cash_pending || group.has_pending_approval ? '' : `
                         <div style="font-size: 0.85rem; color: var(--text-muted); text-align: center; width: 100%; padding: 4px;">
                             ⏳ Mutfakta Hazırlanıyor...
                         </div>
                     `)}
-                    <button class="btn-status-action btn-danger" style="font-size:0.8rem; padding:6px;" onclick="clearMasaWithPin(${group.masa_id})">
-                        🧹 Masayı Temizle / Oturumu Kapat (CLEAR)
-                    </button>
+                    <div style="text-align: center; margin-top: 4px;">
+                        <button type="button" style="background: none; border: none; color: #f87171; font-size: 0.78rem; font-weight: 700; cursor: pointer; text-decoration: underline; opacity: 0.8;" onclick="clearMasaWithPin(${group.masa_id})">
+                            Oturumu Sonlandır
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    browsingTableIds.forEach(id => {
+        const b = activeBrowsingTables[id];
+        const hasCart = b.item_count && b.item_count > 0;
+        html += `
+            <div class="order-card" style="border-color: ${hasCart ? '#f59e0b' : '#3b82f6'}; box-shadow: 0 0 15px ${hasCart ? 'rgba(245,158,11,0.3)' : 'rgba(59,130,246,0.3)'};">
+                <div class="order-header">
+                    <div class="order-title-wrapper">
+                        <div class="order-table-title">🪑 ${b.masa_no}</div>
+                        <span class="table-badge" style="background:${hasCart ? '#f59e0b' : '#3b82f6'}; color:#fff; font-weight:800;">
+                            ${hasCart ? `📖 MENÜ İNCELENİYOR (${b.item_count} Ürün Sepette)` : '📖 MENÜ İNCELENİYOR'}
+                        </span>
+                    </div>
+                </div>
+                <div style="background:${hasCart ? 'rgba(245,158,11,0.12)' : 'rgba(59,130,246,0.12)'}; border:1px solid ${hasCart ? '#f59e0b' : '#3b82f6'}; padding:12px; border-radius:var(--radius-md); font-size:0.85rem; color:${hasCart ? '#fbbf24' : '#60a5fa'}; margin-top:8px;">
+                    ${hasCart 
+                        ? `📖 Müşteri menüyü inceliyor ve sepete ürün ekledi: <strong>${b.last_item}</strong> (Toplam ${b.item_count} Ürün). Sipariş verdiğinde anında uyarılacaksınız!`
+                        : `👋 Müşteri masaya oturdu, QR kod ile menüyü inceliyor. Sipariş verdiğinde anında uyarılacaksınız!`}
                 </div>
             </div>
         `;
@@ -545,6 +538,24 @@ window.collectCashTableWithPin = function(masaId) {
     });
 };
 
+window.deliverTableOrdersDirect = async function(masaId) {
+    const readyOrders = waiterOrders.filter(o => o.masa_id === masaId && o.siparis_durumu === 'hazir');
+    try {
+        const garsonName = activeGarson ? activeGarson.garson_adi : 'Garson';
+        await Promise.all(readyOrders.map(o => 
+            fetch(`/api/siparisler/${o.id}/durum`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ yeni_durum: 'teslim_edildi', garson_adi: garsonName })
+            })
+        ));
+        loadWaiterData();
+        showWaiterToast(`🚀 Masa siparişi masaya teslim edildi.`);
+    } catch (e) {
+        alert("İşlem başarısız.");
+    }
+};
+
 window.deliverTableOrdersWithPin = function(masaId) {
     requireGarsonPin(async (garson) => {
         const readyOrders = waiterOrders.filter(o => o.masa_id === masaId && o.siparis_durumu === 'hazir');
@@ -566,12 +577,12 @@ window.deliverTableOrdersWithPin = function(masaId) {
 
 window.clearMasaWithPin = function(masaId) {
     requireGarsonPin(async (garson) => {
-        if (!confirm(`Masa ${garson.garson_adi} yetkisiyle temizlenecek ve oturum kapatılacaktır. Onaylıyor musunuz?`)) return;
+        if (!confirm(`Masa oturumu ${garson.garson_adi} yetkisiyle sonlandırılacaktır. Onaylıyor musunuz?`)) return;
         try {
             const res = await fetch(`/api/masalar/${masaId}/clear`, { method: 'POST' });
             if (res.ok) {
                 loadWaiterData();
-                showWaiterToast(`Masa ${garson.garson_adi} tarafından temizlendi ve sıfırlandı! 🧹`);
+                showWaiterToast(`Masa oturumu ${garson.garson_adi} tarafından sonlandırıldı.`);
             }
         } catch(e) {
             alert("İşlem başarısız.");
@@ -586,4 +597,197 @@ function showWaiterToast(msg) {
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 4000);
 }
+
+// ==========================================================================
+// GARSON SİPARİŞ DÜZENLEME MANTIĞI (TIK TIK ÜRÜN EKLE/ÇIKAR/ADET GÜNCELLE)
+// ==========================================================================
+let currentEditOrder = null;
+let currentEditItems = [];
+let allMenuProducts = [];
+
+async function loadAllMenuProducts() {
+    if (allMenuProducts.length === 0) {
+        try {
+            const res = await fetch('/api/urunler');
+            allMenuProducts = await res.json();
+        } catch(e) {
+            console.error("Ürünler yüklenemedi:", e);
+        }
+    }
+}
+
+window.openEditOrderModalForTable = async function(masaId) {
+    const pendingOrders = waiterOrders.filter(o => o.masa_id === masaId && o.siparis_durumu === 'garson_onayi_bekliyor');
+    if (pendingOrders.length === 0) {
+        alert("Düzenlenecek onay bekleyen sipariş bulunamadı.");
+        return;
+    }
+
+    currentEditOrder = pendingOrders[0];
+    currentEditItems = JSON.parse(JSON.stringify(currentEditOrder.detaylar || []));
+
+    await loadAllMenuProducts();
+    populateEditProductSelect();
+
+    const titleEl = document.getElementById('editModalTitle');
+    if (titleEl) titleEl.innerText = `✏️ Masa ${currentEditOrder.masa_no} Siparişini Düzenle`;
+
+    renderEditOrderItems();
+    document.getElementById('editOrderModal').classList.add('active');
+};
+
+function populateEditProductSelect() {
+    const select = document.getElementById('editAddProductSelect');
+    if (!select) return;
+    let html = '<option value="">-- Menüden Ürün Seçiniz --</option>';
+    allMenuProducts.forEach(p => {
+        html += `<option value="${p.id}">${p.urun_adi} (${p.fiyat.toFixed(2)} ₺)</option>`;
+    });
+    select.innerHTML = html;
+}
+
+function renderEditOrderItems() {
+    const container = document.getElementById('editOrderItemsContainer');
+    const totalEl = document.getElementById('editModalTotalAmount');
+    if (!container) return;
+
+    let total = 0;
+    if (currentEditItems.length === 0) {
+        container.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-secondary);">Siparişte ürün kalmadı.</div>`;
+    } else {
+        let html = '';
+        currentEditItems.forEach((item, index) => {
+            const araToplam = item.adet * item.birim_fiyat;
+            total += araToplam;
+            html += `
+                <div class="order-item-row" style="padding: 10px 0; border-bottom: 1px dashed rgba(255,255,255,0.08);">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:700;">${item.urun_adi}</span>
+                        <span style="font-weight:800; color:#fbbf24;">${araToplam.toFixed(2)} ₺</span>
+                    </div>
+                    ${item.urun_notu ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">${item.urun_notu}</div>` : ''}
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px;">
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <button type="button" onclick="changeEditItemQty(${index}, -1)" style="width:32px; height:32px; font-weight:800; border-radius:var(--radius-sm); background:rgba(255,255,255,0.12); border:1px solid var(--border-color); color:#fff; cursor:pointer;">-</button>
+                            <span style="font-weight:800; font-size:1.1rem; min-width:24px; text-align:center;">${item.adet}</span>
+                            <button type="button" onclick="changeEditItemQty(${index}, 1)" style="width:32px; height:32px; font-weight:800; border-radius:var(--radius-sm); background:rgba(255,255,255,0.12); border:1px solid var(--border-color); color:#fff; cursor:pointer;">+</button>
+                        </div>
+                        <button type="button" style="background:none; border:none; color:var(--danger); font-size:0.85rem; font-weight:700; cursor:pointer;" onclick="removeEditItem(${index})">🗑️ Sil</button>
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    }
+
+    if (totalEl) totalEl.innerText = `${total.toFixed(2)} ₺`;
+}
+
+window.changeEditItemQty = function(index, delta) {
+    if (!currentEditItems[index]) return;
+    currentEditItems[index].adet += delta;
+    if (currentEditItems[index].adet <= 0) {
+        currentEditItems.splice(index, 1);
+    }
+    renderEditOrderItems();
+};
+
+window.removeEditItem = function(index) {
+    currentEditItems.splice(index, 1);
+    renderEditOrderItems();
+};
+
+window.addSelectedProductToEditOrder = function() {
+    const select = document.getElementById('editAddProductSelect');
+    if (!select || !select.value) return;
+    const prodId = parseInt(select.value);
+    const prod = allMenuProducts.find(p => p.id === prodId);
+    if (!prod) return;
+
+    const existing = currentEditItems.find(i => i.urun_id === prodId);
+    if (existing) {
+        existing.adet += 1;
+    } else {
+        currentEditItems.push({
+            urun_id: prod.id,
+            urun_adi: prod.urun_adi,
+            adet: 1,
+            birim_fiyat: prod.fiyat,
+            urun_notu: '',
+            ara_toplam: prod.fiyat
+        });
+    }
+
+    select.value = '';
+    renderEditOrderItems();
+};
+
+window.closeEditOrderModal = function() {
+    currentEditOrder = null;
+    currentEditItems = [];
+    const modal = document.getElementById('editOrderModal');
+    if (modal) modal.classList.remove('active');
+};
+
+window.saveEditedOrder = function() {
+    if (!currentEditOrder) return;
+    
+    if (currentEditItems.length === 0) {
+        alert("Siparişte en az 1 ürün bulunmalıdır.");
+        return;
+    }
+
+    requireGarsonPin(async (garson) => {
+        const totalAmount = currentEditItems.reduce((acc, item) => acc + (item.adet * item.birim_fiyat), 0);
+        const payload = {
+            toplam_tutar: totalAmount,
+            garson_adi: garson.garson_adi,
+            urunler: currentEditItems.map(i => ({
+                urun_id: i.urun_id,
+                adet: i.adet,
+                birim_fiyat: i.birim_fiyat,
+                urun_notu: i.urun_notu || ''
+            }))
+        };
+
+        try {
+            const res = await fetch(`/api/siparisler/${currentEditOrder.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                closeEditOrderModal();
+                loadWaiterData();
+                showWaiterToast(`✏️ Sipariş ${garson.garson_adi} tarafından güncellendi!`);
+            } else {
+                const errData = await res.json().catch(() => ({}));
+                alert(errData.detail || "Sipariş güncelleme başarısız.");
+            }
+        } catch(e) {
+            alert("Sunucu bağlantı hatası. Lütfen ağınızı kontrol edin.");
+        }
+    });
+};
+
+function updateActiveGarsonBadge() {
+    const badge = document.getElementById('activeGarsonBadge');
+    if (!badge) return;
+    if (activeGarson) {
+        badge.innerHTML = `
+            <span>👤 Garson: ${activeGarson.garson_adi}</span>
+            <button onclick="logoutGarson()" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:0.75rem; font-weight:700; padding:0; margin-left:4px;">🔒 Çıkış</button>
+        `;
+        badge.style.display = 'inline-flex';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+window.logoutGarson = function() {
+    activeGarson = null;
+    updateActiveGarsonBadge();
+    showWaiterToast("Garson oturumu kapatıldı.");
+};
 

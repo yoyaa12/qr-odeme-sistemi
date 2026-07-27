@@ -1,19 +1,23 @@
 <!DOCTYPE html>
 <html lang="tr">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Müşteri QR Menüsü</title>
     <link rel="stylesheet" href="/static/css/style.css">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
+
 <body>
 
     <!-- NAVBAR (TEMİZ VE MOBİL UYUMLU) -->
     <header class="navbar">
         <div class="brand">
             <svg class="brand-icon-svg" viewBox="0 0 24 24">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                <path
+                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
             </svg>
             <span>Lezzet Dünyası Restoran</span>
         </div>
@@ -24,7 +28,7 @@
 
     <!-- CONTAINER (ALTTA SABİT BAR İÇİN BOŞLUKLU) -->
     <main class="container">
-        
+
         <!-- CANLI SİPARİŞ TAKİP ALANI (F5 İLE KAYBOLMAZ, SİPARİŞ DETAYLARINI İÇERİR) -->
         <div id="orderTrackingContainer" style="display: none;">
             <!-- Canlı takip ve sipariş detayları JS ile render edilir -->
@@ -60,13 +64,17 @@
         <div class="modal-content" style="text-align: center;">
             <div style="font-size: 3rem; margin-bottom: 12px;">🌐</div>
             <h2 style="font-size: 1.5rem; margin-bottom: 8px;">Dil Seçin / Select Language</h2>
-            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 24px;">Lütfen menüde kullanmak istediğiniz dili seçin.</p>
-            
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 24px;">Lütfen menüde kullanmak
+                istediğiniz dili seçin.</p>
+
             <div style="display:flex; flex-direction:column; gap: 12px;">
-                <button class="btn-add" style="justify-content: center; padding: 14px; font-size: 1.1rem;" onclick="selectLanguage('tr')">
+                <button class="btn-add" style="justify-content: center; padding: 14px; font-size: 1.1rem;"
+                    onclick="selectLanguage('tr')">
                     🇹🇷 Türkçe
                 </button>
-                <button class="btn-add" style="justify-content: center; padding: 14px; font-size: 1.1rem; background: rgba(255,255,255,0.08); color: #fff; box-shadow:none;" onclick="selectLanguage('en')">
+                <button class="btn-add"
+                    style="justify-content: center; padding: 14px; font-size: 1.1rem; background: rgba(255,255,255,0.08); color: #fff; box-shadow:none;"
+                    onclick="selectLanguage('en')">
                     🇬🇧 English
                 </button>
             </div>
@@ -81,8 +89,9 @@
                 <button class="modal-close" onclick="closeModal('productModal')">✖</button>
             </div>
             <p id="modalProductDesc" style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;"></p>
-            
-            <div style="font-size: 1.5rem; font-weight: 800; color: #fbbf24; margin-bottom: 16px;" id="modalProductPrice">0.00 ₺</div>
+
+            <div style="font-size: 1.5rem; font-weight: 800; color: #fbbf24; margin-bottom: 16px;"
+                id="modalProductPrice">0.00 ₺</div>
 
             <!-- PIZZA BOYUT SEÇİM ALANI -->
             <div id="pizzaSizeSection" style="display: none; margin-bottom: 16px;">
@@ -104,18 +113,30 @@
 
             <!-- ADET SEÇİMİ -->
             <div style="margin-bottom: 16px;">
-                <label style="display:block; font-size:0.85rem; font-weight:700; color:var(--text-secondary); margin-bottom:6px;">Adet</label>
-                <input type="number" id="modalQuantity" value="1" min="1" max="20" style="width: 100%; font-size: 1.1rem; font-weight: 700;" onchange="updateModalCalculatedPrice()">
+                <label
+                    style="display:block; font-size:0.85rem; font-weight:700; color:var(--text-secondary); margin-bottom:6px;">Adet</label>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <button type="button" onclick="window.changeModalQuantity(-1)"
+                        style="width:48px; height:48px; font-size:1.6rem; font-weight:800; border-radius:var(--radius-md); background:rgba(255,255,255,0.12); border:1px solid var(--border-color); color:#fff; cursor:pointer; user-select:none; touch-action:manipulation;">-</button>
+                    <input type="number" id="modalQuantity" value="1" min="1" max="20" readonly
+                        style="flex:1; text-align:center; font-size: 1.3rem; font-weight: 800; background:rgba(0,0,0,0.2); border:1px solid var(--border-color); color:#fff; cursor:default; user-select:none;"
+                        onchange="updateModalCalculatedPrice()">
+                    <button type="button" onclick="window.changeModalQuantity(1)"
+                        style="width:48px; height:48px; font-size:1.6rem; font-weight:800; border-radius:var(--radius-md); background:rgba(255,255,255,0.12); border:1px solid var(--border-color); color:#fff; cursor:pointer; user-select:none; touch-action:manipulation;">+</button>
+                </div>
             </div>
 
             <!-- DİNAMİK ÇİPLER VE ÖZEL NOT -->
             <div class="note-input-group">
                 <label>✏️ Özel İstek / Not Seçin (Tıklayıp Kaldırabilirsiniz)</label>
                 <div id="quickNotesContainer" class="quick-notes" style="margin-bottom: 12px;"></div>
-                <input type="text" id="modalProductNote" placeholder="Varsa ekstra özel notunuz..." style="width: 100%;">
+                <input type="text" id="modalProductNote" placeholder="Varsa ekstra özel notunuz..."
+                    style="width: 100%;">
             </div>
 
-            <button class="btn-add" style="width: 100%; justify-content: center; margin-top: 24px; padding: 14px; font-size: 1rem;" onclick="confirmAddToCart()">
+            <button class="btn-add"
+                style="width: 100%; justify-content: center; margin-top: 24px; padding: 14px; font-size: 1rem;"
+                onclick="confirmAddToCart()">
                 Sepete Ekle
             </button>
         </div>
@@ -131,21 +152,23 @@
 
             <div id="cartItemsContainer" style="max-height: 280px; overflow-y: auto; margin-bottom: 20px;"></div>
 
-            <div style="display:flex; justify-content:space-between; align-items:center; border-top: 1px solid var(--border-color); padding-top: 16px; margin-bottom: 20px;">
+            <div
+                style="display:flex; justify-content:space-between; align-items:center; border-top: 1px solid var(--border-color); padding-top: 16px; margin-bottom: 20px;">
                 <span style="font-size: 1.1rem; font-weight: 700;">Toplam Tutar:</span>
                 <span id="modalCartTotal" style="font-size: 1.4rem; font-weight: 800; color: #fbbf24;">0.00 ₺</span>
             </div>
 
             <!-- ÖDEME YÖNTEMİ SEÇENEKLERİ -->
             <div style="display:flex; flex-direction:column; gap: 12px;">
-                <button class="btn-add" style="justify-content: center; padding: 14px; font-size: 0.95rem; background: linear-gradient(135deg, var(--primary), #d97706);" onclick="openPaymentCheckout('pos')">
-                    ⚡ Online Kart / Masterpass İle Şimdi Öde (Anında Mutfağa)
+                <button class="btn-add"
+                    style="justify-content: center; padding: 14px; font-size: 0.95rem; background: linear-gradient(135deg, var(--primary), #d97706);"
+                    onclick="openPaymentCheckout('pos')">
+                    💳 Kayıtlı Kartlarım İle Hızlı Öde (Anında Mutfağa)
                 </button>
-                <button class="btn-add" style="justify-content: center; padding: 14px; font-size: 0.95rem; background: linear-gradient(135deg, #3b82f6, #1d4ed8);" onclick="openPaymentCheckout('garson_kasada')">
+                <button class="btn-add"
+                    style="justify-content: center; padding: 14px; font-size: 0.95rem; background: linear-gradient(135deg, #3b82f6, #1d4ed8);"
+                    onclick="openPaymentCheckout('garson_kasada')">
                     🛎️ Garson Onayı İle Sipariş Ver (Yedikten Sonra Kasada Öde)
-                </button>
-                <button class="btn-add" style="justify-content: center; padding: 14px; font-size: 0.95rem; background: linear-gradient(135deg, var(--success), #047857);" onclick="openPaymentCheckout('nakit')">
-                    💵 Masada Garsona Nakit Öde
                 </button>
             </div>
         </div>
@@ -160,10 +183,14 @@
             </div>
 
             <!-- Sipariş Özeti Dekontu -->
-            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px; margin-bottom: 16px;">
-                <div style="font-size:0.85rem; font-weight:700; color:var(--text-secondary); margin-bottom:8px;">📋 SİPARİŞ DEKONT ÖZETİ</div>
-                <div id="checkoutSummaryList" style="display:flex; flex-direction:column; gap:6px; font-size:0.9rem;"></div>
-                <div style="display:flex; justify-content:space-between; border-top:1px dashed var(--border-color); margin-top:10px; padding-top:8px; font-weight:800; font-size:1.1rem; color:#fbbf24;">
+            <div
+                style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px; margin-bottom: 16px;">
+                <div style="font-size:0.85rem; font-weight:700; color:var(--text-secondary); margin-bottom:8px;">📋
+                    SİPARİŞ DEKONT ÖZETİ</div>
+                <div id="checkoutSummaryList" style="display:flex; flex-direction:column; gap:6px; font-size:0.9rem;">
+                </div>
+                <div
+                    style="display:flex; justify-content:space-between; border-top:1px dashed var(--border-color); margin-top:10px; padding-top:8px; font-weight:800; font-size:1.1rem; color:#fbbf24;">
                     <span>Ödenecek Tutar:</span>
                     <span id="checkoutTotalAmount">0.00 ₺</span>
                 </div>
@@ -174,7 +201,8 @@
                 <div class="option-section-title">Ödeme Yönteminiz</div>
                 <div style="display:flex; flex-direction:column; gap: 8px;">
                     <label class="extra-item-row selected" style="cursor:pointer;">
-                        <input type="radio" name="cardOption" value="apple_pay" checked style="accent-color: var(--primary);">
+                        <input type="radio" name="cardOption" value="apple_pay" checked
+                            style="accent-color: var(--primary);">
                         <span style="font-weight:700;"> Pay / Google Pay (Hızlı Bakiye)</span>
                     </label>
                     <label class="extra-item-row" style="cursor:pointer;">
@@ -185,13 +213,17 @@
             </div>
 
             <!-- NAKİT AÇIKLAMA ALANI -->
-            <div id="cashNoticeSection" style="display:none; margin-bottom:20px; background: rgba(16,185,129,0.15); border:1px solid var(--success); padding:12px; border-radius:var(--radius-md); font-size:0.88rem; color:#fff;">
-                ℹ️ Siparişinizi onayladığınızda <strong>garsonlarımızdan biri nakit tahsilat için masanıza gelecektir</strong>. Garson parayı alıp panelinden onaylayacaktır.
+            <div id="cashNoticeSection"
+                style="display:none; margin-bottom:20px; background: rgba(16,185,129,0.15); border:1px solid var(--success); padding:12px; border-radius:var(--radius-md); font-size:0.88rem; color:#fff;">
+                ℹ️ Siparişinizi onayladığınızda <strong>garsonlarımızdan biri nakit tahsilat için masanıza
+                    gelecektir</strong>. Garson parayı alıp panelinden onaylayacaktır.
             </div>
 
             <!-- ONAY BUTONU VE YÜKLENİYOR SİMÜLASYONU -->
             <div id="checkoutActionBox">
-                <button id="btnConfirmFinalPayment" class="btn-add" style="width: 100%; justify-content: center; padding: 14px; font-size: 1rem; background: linear-gradient(135deg, var(--success), #047857);" onclick="confirmFinalOrder()">
+                <button id="btnConfirmFinalPayment" class="btn-add"
+                    style="width: 100%; justify-content: center; padding: 14px; font-size: 1rem; background: linear-gradient(135deg, var(--success), #047857);"
+                    onclick="confirmFinalOrder()">
                     ✅ Ödemeyi Onayla ve Siparişi Tamamla
                 </button>
             </div>
@@ -200,4 +232,5 @@
 
     <script src="/static/js/app.js"></script>
 </body>
+
 </html>

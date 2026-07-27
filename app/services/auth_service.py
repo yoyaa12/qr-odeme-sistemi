@@ -1,18 +1,19 @@
 from fastapi import Depends, HTTPException
 from app.repositories.auth_repo import AuthRepository
-from app.schemas.schemas import LoginModel, GarsonPinVerifyModel
+from app.schemas.schemas import LoginModel, GarsonPinVerifyModel, KullaniciResponse
+from typing import List
 
 class AuthService:
     def __init__(self, repo: AuthRepository = Depends()):
         self.repo = repo
 
-    def login(self, data: LoginModel):
+    def login(self, data: LoginModel) -> KullaniciResponse:
         user = self.repo.get_user_by_credentials(data.kullanici_adi, data.sifre)
         if not user:
             raise HTTPException(status_code=401, detail="Hatalı giriş!")
-        return user
+        return KullaniciResponse(**user)
 
-    def verify_garson_pin(self, data: GarsonPinVerifyModel):
+    def verify_garson_pin(self, data: GarsonPinVerifyModel) -> KullaniciResponse:
         pin = data.pin_code.strip()
         if len(pin) != 6 or not pin.isdigit():
             raise HTTPException(status_code=400, detail="PIN kodu 6 haneli rakamlardan oluşmalıdır!")
@@ -20,7 +21,8 @@ class AuthService:
         garson = self.repo.get_garson_by_pin(pin)
         if not garson:
             raise HTTPException(status_code=401, detail="Hatalı 6 Haneli Garson PIN Kodu!")
-        return garson
+        return KullaniciResponse(**garson)
 
-    def get_garsonlar(self):
-        return self.repo.get_all_garsonlar()
+    def get_garsonlar(self) -> List[KullaniciResponse]:
+        garsonlar = self.repo.get_all_garsonlar()
+        return [KullaniciResponse(**g) for g in garsonlar] if garsonlar else []

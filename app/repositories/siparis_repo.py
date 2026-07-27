@@ -79,6 +79,23 @@ class SiparisRepository:
         res = execute_query(query, (masa_id,), fetch_one=True)
         return res['cnt'] if res else 0
 
+    def get_unpaid_count_for_masa(self, masa_id: int) -> int:
+        query = "SELECT COUNT(*) as cnt FROM Siparisler WHERE masa_id = ? AND odeme_durumu != 'odendi' AND siparis_durumu != 'iptal'"
+        res = execute_query(query, (masa_id,), fetch_one=True)
+        return res['cnt'] if res else 0
+
     def clear_active_orders_for_masa(self, masa_id: int):
-        query = "UPDATE Siparisler SET siparis_durumu = 'teslim_edildi' WHERE masa_id = ? AND siparis_durumu IN ('garson_onayi_bekliyor', 'nakit_bekliyor', 'odendi_mutfakta', 'garson_onayladi_mutfakta', 'hazirlaniyor', 'hazir')"
+        query = "UPDATE Siparisler SET siparis_durumu = 'teslim_edildi', odeme_durumu = 'odendi' WHERE masa_id = ? AND siparis_durumu IN ('garson_onayi_bekliyor', 'nakit_bekliyor', 'odendi_mutfakta', 'garson_onayladi_mutfakta', 'hazirlaniyor', 'hazir', 'teslim_edildi')"
         execute_non_query(query, (masa_id,))
+
+    def update_siparis_items(self, siparis_id: int, toplam_tutar: float, urunler: list, garson_adi: Optional[str] = None):
+        if garson_adi:
+            execute_non_query("UPDATE Siparisler SET toplam_tutar = ?, garson_adi = ? WHERE id = ?", (toplam_tutar, garson_adi, siparis_id))
+        else:
+            execute_non_query("UPDATE Siparisler SET toplam_tutar = ? WHERE id = ?", (toplam_tutar, siparis_id))
+        
+        execute_non_query("DELETE FROM SiparisDetaylari WHERE siparis_id = ?", (siparis_id,))
+        for item in urunler:
+            ara_toplam = item.adet * item.birim_fiyat
+            self.create_siparis_detay(siparis_id, item.urun_id, item.adet, item.birim_fiyat, item.urun_notu or "", ara_toplam)
+

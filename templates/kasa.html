@@ -34,6 +34,86 @@
         </div>
     </main>
 
+    <!-- PARÇALI / KALEM & TUTAR BAZLI ÖDEME MODALİ -->
+    <div id="parcaliOdemeModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 520px; width: 95%;">
+            <div class="modal-header">
+                <h3 id="parcaliModalTitle">💳 Masa Tahsilat & Parçalı Ödeme</h3>
+                <button class="modal-close" onclick="closeParcaliModal()">✖</button>
+            </div>
+
+            <!-- SEKME SEÇİMİ (TAB HEADERS) -->
+            <div style="display:flex; gap:8px; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
+                <button id="tabBtnKalem" type="button" class="btn-status-action" style="flex:1; padding:8px; font-weight:700; background:var(--primary); color:#000;" onclick="switchParcaliTab('kalem')">
+                    📦 Kalem Bazlı (Ürün Seç)
+                </button>
+                <button id="tabBtnTutar" type="button" class="btn-status-action" style="flex:1; padding:8px; font-weight:700; background:rgba(255,255,255,0.08); color:#fff;" onclick="switchParcaliTab('tutar')">
+                    💵 Tutar Bazlı (Serbest Ödeme)
+                </button>
+            </div>
+            
+            <!-- SEKME A: KALEM BAZLI -->
+            <div id="tabContentKalem">
+                <div style="font-size:0.82rem; color:var(--text-secondary); margin-bottom:12px;">
+                    Müşterinin ödemek istediği spesifik ürünleri işaretleyiniz.
+                </div>
+                <div id="parcaliItemList" style="max-height:240px; overflow-y:auto; margin-bottom:16px; display:flex; flex-direction:column; gap:8px;">
+                    <!-- JS ile gelecek -->
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px dashed var(--border-color); padding-top:12px; margin-bottom:16px; font-weight:800; font-size:1.05rem; color:#fbbf24;">
+                    <span>Seçilen Ürünlerin Toplamı:</span>
+                    <span id="parcaliSelectedTotal">0.00 ₺</span>
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <button class="btn-add" style="flex:1; justify-content:center; padding:12px; font-size:0.9rem; background:linear-gradient(135deg, #10b981, #047857);" onclick="processParcaliPayment('Nakit')">
+                        💵 Nakit Tahsil Et
+                    </button>
+                    <button class="btn-add" style="flex:1; justify-content:center; padding:12px; font-size:0.9rem; background:linear-gradient(135deg, var(--primary), #d97706);" onclick="processParcaliPayment('Kredi Kartı')">
+                        💳 POS / Kart Tahsil Et
+                    </button>
+                </div>
+            </div>
+
+            <!-- SEKME B: TUTAR / SERBEST ÖDEME -->
+            <div id="tabContentTutar" style="display:none;">
+                <div style="background:rgba(255,255,255,0.04); border:1px solid var(--border-color); padding:14px; border-radius:var(--radius-md); margin-bottom:16px;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:0.9rem;">
+                        <span>Toplam Adisyon Hesabı:</span>
+                        <strong id="tutarModalTotal" style="color:#fff;">0.00 ₺</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:0.9rem; color:var(--success);">
+                        <span>Bugün Tahsil Edilen:</span>
+                        <strong id="tutarModalPaid">0.00 ₺</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:1.1rem; font-weight:800; color:#fbbf24; border-top:1px dashed rgba(255,255,255,0.1); padding-top:8px;">
+                        <span>Kalan Ödenecek Bakiye:</span>
+                        <strong id="tutarModalRemaining">0.00 ₺</strong>
+                    </div>
+                </div>
+
+                <div style="margin-bottom:16px;">
+                    <label style="display:block; font-size:0.85rem; font-weight:700; color:var(--text-secondary); margin-bottom:6px;">
+                        Tahsil Edilecek Tutar (₺):
+                    </label>
+                    <div style="display:flex; gap:8px;">
+                        <input type="number" id="tutarInputAmount" step="0.01" min="0.01" class="form-control" style="flex:1; background:rgba(0,0,0,0.5); color:#fff; border:1px solid var(--border-color); padding:10px; font-size:1.2rem; font-weight:800; text-align:center; border-radius:var(--radius-sm);" placeholder="0.00">
+                        <button type="button" class="btn-add" style="padding:0 14px; font-size:0.85rem;" onclick="fillRemainingAmount()">Tamamı</button>
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:10px;">
+                    <button class="btn-add" style="flex:1; justify-content:center; padding:12px; font-size:0.9rem; background:linear-gradient(135deg, #10b981, #047857);" onclick="processTutarPayment('Nakit')">
+                        💵 Nakit Tahsil Et
+                    </button>
+                    <button class="btn-add" style="flex:1; justify-content:center; padding:12px; font-size:0.9rem; background:linear-gradient(135deg, var(--primary), #d97706);" onclick="processTutarPayment('Kredi Kartı')">
+                        💳 POS / Kart Tahsil Et
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
     <script src="/static/js/kasa.js"></script>
 </body>
 </html>

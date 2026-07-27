@@ -207,7 +207,7 @@ async function loadKasaTables() {
                     </div>
                     ${isDolu ? `
                         <button class="btn-status-action btn-danger" style="width:100%; padding:10px; font-weight:800;" onclick="clearTableFromAdmin(${t.id})">
-                            🧹 Masayı Temizle / Hesabı Kapat (CLEAR)
+                            Oturumu Sonlandır
                         </button>
                     ` : ''}
                 </div>
@@ -220,13 +220,13 @@ async function loadKasaTables() {
 }
 
 async function clearTableFromAdmin(masaId) {
-    if (!confirm("Masa hesabı kapatılacak ve masa sıfırlanacaktır. Onaylıyor musunuz?")) return;
+    if (!confirm("Masa oturumu sonlandırılacaktır. Onaylıyor musunuz?")) return;
     try {
         const res = await fetch(`/api/masalar/${masaId}/clear`, { method: 'POST' });
         if (res.ok) {
             loadKasaTables();
             loadAdminTables();
-            alert("Masa başarıyla temizlendi ve sıfırlandı!");
+            alert("Masa oturumu sonlandırıldı!");
         }
     } catch(e) {
         alert("Masa sıfırlanamadı.");

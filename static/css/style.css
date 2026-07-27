@@ -10,17 +10,17 @@
     --bg-card-hover: rgba(35, 46, 70, 0.85);
     --bg-input: #161e31;
     --border-color: rgba(245, 158, 11, 0.15);
-    
+
     --primary: #f59e0b;
     --primary-hover: #d97706;
     --primary-glow: rgba(245, 158, 11, 0.35);
-    
+
     --accent: #6366f1;
     --accent-glow: rgba(99, 102, 241, 0.35);
-    
+
     --success: #10b981;
     --success-glow: rgba(16, 185, 129, 0.35);
-    
+
     --danger: #ef4444;
     --danger-glow: rgba(239, 68, 68, 0.35);
 
@@ -48,7 +48,7 @@
 
 body {
     background-color: var(--bg-main);
-    background-image: 
+    background-image:
         radial-gradient(at 0% 0%, rgba(245, 158, 11, 0.12) 0px, transparent 50%),
         radial-gradient(at 100% 100%, rgba(99, 102, 241, 0.12) 0px, transparent 50%);
     background-attachment: fixed;
@@ -58,7 +58,12 @@ body {
     flex-direction: column;
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
     font-family: 'Outfit', sans-serif;
     font-weight: 700;
 }
@@ -76,7 +81,9 @@ button {
     transition: var(--transition);
 }
 
-input, select, textarea {
+input,
+select,
+textarea {
     font-family: inherit;
     outline: none;
     border: 1px solid var(--border-color);
@@ -87,7 +94,9 @@ input, select, textarea {
     transition: var(--transition);
 }
 
-input:focus, select:focus, textarea:focus {
+input:focus,
+select:focus,
+textarea:focus {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px var(--primary-glow);
 }
@@ -355,9 +364,17 @@ input:focus, select:focus, textarea:focus {
 }
 
 @keyframes pulseGlow {
-    0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
-    70% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+    0% {
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+    }
+
+    70% {
+        box-shadow: 0 0 0 10px rgba(245, 158, 11, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+    }
 }
 
 .table-node-number {
@@ -702,29 +719,71 @@ input:focus, select:focus, textarea:focus {
 }
 
 @keyframes pulse-card {
-    0% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.3); }
-    50% { box-shadow: 0 0 25px rgba(239, 68, 68, 0.7); }
-    100% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.3); }
+    0% {
+        box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+    }
+
+    50% {
+        box-shadow: 0 0 25px rgba(239, 68, 68, 0.7);
+    }
+
+    100% {
+        box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+    }
 }
 
 @keyframes pulse-green {
-    0% { box-shadow: 0 0 10px rgba(16, 185, 129, 0.3); }
-    50% { box-shadow: 0 0 25px rgba(16, 185, 129, 0.8); }
-    100% { box-shadow: 0 0 10px rgba(16, 185, 129, 0.3); }
+    0% {
+        box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+    }
+
+    50% {
+        box-shadow: 0 0 25px rgba(16, 185, 129, 0.8);
+    }
+
+    100% {
+        box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+    }
 }
 
 .order-header {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    gap: 8px;
     border-bottom: 1px solid var(--border-color);
     padding-bottom: 12px;
+    margin-bottom: 10px;
+}
+
+.order-title-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
 .order-table-title {
     font-size: 1.3rem;
     font-weight: 800;
     color: #fff;
+}
+
+.order-total-bar {
+    font-size: 0.85rem;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.order-total-bar strong {
+    color: #fbbf24;
+    font-size: 0.95rem;
 }
 
 .order-code {
@@ -799,7 +858,8 @@ input:focus, select:focus, textarea:focus {
     border: 1px solid var(--border-color);
 }
 
-.admin-table th, .admin-table td {
+.admin-table th,
+.admin-table td {
     padding: 14px 18px;
     text-align: left;
     border-bottom: 1px solid var(--border-color);
@@ -818,22 +878,28 @@ input:focus, select:focus, textarea:focus {
     .navbar {
         padding: 12px 14px;
     }
+
     .brand {
         font-size: 1.05rem;
     }
+
     .table-badge {
         padding: 5px 10px;
         font-size: 0.78rem;
     }
+
     .category-grid-bar {
         grid-template-columns: repeat(2, 1fr);
     }
+
     .product-grid {
         grid-template-columns: 1fr;
     }
+
     .order-cards-grid {
         grid-template-columns: 1fr;
     }
+
     .size-options-grid {
         grid-template-columns: 1fr;
     }
@@ -898,8 +964,15 @@ input:focus, select:focus, textarea:focus {
 }
 
 @keyframes toastSlideIn {
-    from { transform: translateY(20px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
 }
 
 /* 6 HANELİ GARSON PIN NUMPAD STİLLERİ */
@@ -945,9 +1018,21 @@ input:focus, select:focus, textarea:focus {
 }
 
 @keyframes shakePin {
-    0%, 100% { transform: translateX(0); }
-    20%, 60% { transform: translateX(-6px); }
-    40%, 80% { transform: translateX(6px); }
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    20%,
+    60% {
+        transform: translateX(-6px);
+    }
+
+    40%,
+    80% {
+        transform: translateX(6px);
+    }
 }
 
 .pin-error-msg {
@@ -1001,4 +1086,3 @@ input:focus, select:focus, textarea:focus {
     background: rgba(255, 255, 255, 0.1);
     color: var(--text-secondary);
 }
-
