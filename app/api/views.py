@@ -34,3 +34,9 @@ async def admin_panel_page():
 @router.get("/kasa", response_class=HTMLResponse)
 async def kasa_panel_page():
     return get_html_content("kasa.html")
+
+
+
+
+
+

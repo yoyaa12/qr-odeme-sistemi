@@ -12,6 +12,7 @@ class SiparisOlusturModel(BaseModel):
     toplam_tutar: float
     odeme_yontemi: Optional[str] = "pos" # pos veya nakit
     urunler: List[SiparisItemModel]
+    device_id: Optional[str] = None
 
 class SiparisDuzenleModel(BaseModel):
     toplam_tutar: float
@@ -69,6 +70,7 @@ class SiparisResponse(BaseModel):
     siparis_durumu: str
     olusturma_tarihi: Optional[str] = None
     garson_adi: Optional[str] = None
+    device_id: Optional[str] = None
     detaylar: List[SiparisDetayResponse] = []
 
 class SiparisDurumResponse(BaseModel):
@@ -100,6 +102,14 @@ class MasaResponse(BaseModel):
     masa_no: str
     durum: str
     secim_durumu: Optional[dict] = None
+
+class GarsonResponse(BaseModel):
+    id: int
+    ad_soyad: str
+    pin_kodu: str
+
+class BanDeviceModel(BaseModel):
+    device_id: str
 
 class KullaniciResponse(BaseModel):
     id: int

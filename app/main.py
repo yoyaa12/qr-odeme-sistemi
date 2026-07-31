@@ -12,6 +12,10 @@ from app.api.v1.api import api_router
 
 app = FastAPI(title="QR Restoran Sipariş Otomasyonu API")
 
+@app.on_event("startup")
+async def startup_db_updates():
+    print("API started. Schema migrations should be handled via migration scripts.")
+
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     return Response(status_code=204)
@@ -21,7 +25,7 @@ app_asgi = socketio.ASGIApp(sio, app)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000"], # Geliştirme ortamı için. Canlıda gerçek domainler eklenmeli.
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

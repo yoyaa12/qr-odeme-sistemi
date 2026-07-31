@@ -6,6 +6,8 @@ sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
 
 # Masada menüyü inceleyen / sepete ürün ekleyen masaların sunucu tarafında takibi
 BROWSING_TABLES = {}
+SID_TO_MASA = {}
+MASA_SESSIONS = {}
 
 @sio.event
 async def connect(sid, environ):
@@ -14,12 +16,27 @@ async def connect(sid, environ):
 @sio.event
 async def disconnect(sid):
     print(f"[Socket.io] İstemci ayrıldı: {sid}")
+    if sid in SID_TO_MASA:
+        masa_id = SID_TO_MASA[sid]
+        del SID_TO_MASA[sid]
+        if masa_id in MASA_SESSIONS and sid in MASA_SESSIONS[masa_id]:
+            MASA_SESSIONS[masa_id].remove(sid)
+            if not MASA_SESSIONS[masa_id]:
+                # O masada kimse kalmadı
+                clear_browsing_table(masa_id)
+                await sio.emit("masa_temizlendi", {"masa_id": masa_id})
 
 @sio.event
 async def musteri_oturdu(sid, data):
     print(f"[Socket.io] Müşteri menüyü açtı: {data}")
     if data and isinstance(data, dict) and "masa_id" in data:
         masa_id = int(data["masa_id"])
+        
+        SID_TO_MASA[sid] = masa_id
+        if masa_id not in MASA_SESSIONS:
+            MASA_SESSIONS[masa_id] = set()
+        MASA_SESSIONS[masa_id].add(sid)
+        
         if masa_id not in BROWSING_TABLES:
             BROWSING_TABLES[masa_id] = {
                 "masa_id": masa_id,

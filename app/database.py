@@ -183,3 +183,19 @@ def execute_non_query(query, params=()):
             cursor.close()
         if close_after:
             conn.close()
+
+class DatabaseSession:
+    """Dependency Injection için veritabanı oturum arayüzü"""
+    def execute_query(self, query, params=(), fetch_all=True, fetch_one=False):
+        return execute_query(query, params, fetch_all, fetch_one)
+        
+    def execute_non_query(self, query, params=()):
+        return execute_non_query(query, params)
+
+def get_db():
+    """FastAPI endpointleri ve repository'ler için DB dependency'si"""
+    db = DatabaseSession()
+    try:
+        yield db
+    finally:
+        pass

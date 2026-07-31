@@ -17,16 +17,49 @@ let state = {
     activeNotes: [],
     currentOrder: null,
     selectedPaymentMethod: 'pos',
-    language: localStorage.getItem('qr_language') || null
+    language: localStorage.getItem('qr_language') || null,
+    deviceId: (function() {
+        let did = localStorage.getItem('qr_device_id');
+        if (!did) {
+            did = 'dev-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now();
+            localStorage.setItem('qr_device_id', did);
+        }
+        return did;
+    })()
 };
 
 // KATEGORİ İKONLARI
 const CATEGORY_ICONS = {
+    'tümü': '🍽️',
+    'tumu': '🍽️',
     'corbalar': '🍲',
-    'ana yemekler': '🍕',
+    'çorbalar': '🍲',
+    'ana yemekler': '🥩',
+    'ana yemek': '🥩',
     'tatlilar': '🍰',
-    'icecekler': '🥤'
+    'tatlılar': '🍰',
+    'icecekler': '🥤',
+    'içecekler': '🥤',
+    'aperatifler': '🍟',
+    'salatalar': '🥗',
+    'soslar': '🥣',
+    'pizzalar': '🍕',
+    'pizzalar & pideler': '🍕',
+    'makarnalar': '🍝',
+    'fast food': '🍔',
+    'kahvalti': '🍳',
+    'kahvaltı': '🍳'
 };
+
+function getCategoryIcon(catName) {
+    if (!catName) return '🍴';
+    const name = catName.toLowerCase().trim();
+    if (CATEGORY_ICONS[name]) return CATEGORY_ICONS[name];
+    for (let key in CATEGORY_ICONS) {
+        if (name.includes(key) || key.includes(name)) return CATEGORY_ICONS[key];
+    }
+    return '🍴';
+}
 
 // PIZZA BOYUTLARI
 const PIZZA_SIZES = [
@@ -90,14 +123,23 @@ function playNotificationSound() {
         gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
         osc.start();
         osc.stop(audioCtx.currentTime + 0.3);
-    } catch(e) {}
+    } catch (e) { }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const masaParam = urlParams.get('masa') || '1';
     state.masaId = parseInt(masaParam);
-    state.masaNo = `Masa ${state.masaId}`;
+    state.masaNo = `Masa ${state.masaId}`; // Fallback
+    
+    try {
+        const mRes = await fetch('/api/masalar');
+        const mData = await mRes.json();
+        const gercekMasa = mData.find(m => m.id === state.masaId);
+        if (gercekMasa) {
+            state.masaNo = gercekMasa.masa_no;
+        }
+    } catch (e) { console.error(e); }
 
     const tableBadge = document.getElementById('tableBadge');
     if (tableBadge) tableBadge.innerHTML = `🪑 ${state.masaNo}`;
@@ -214,7 +256,7 @@ async function loadProducts(kategoriId = null) {
     }
 }
 
-// KUTU KUTU GÖRSELLİ KATEGORİLER
+// DİKEY KATEGORİ SİDEBARI RENDER
 function renderCategoryGrid() {
     const container = document.getElementById('categoryGridBar');
     if (!container) return;
@@ -227,9 +269,10 @@ function renderCategoryGrid() {
     `;
 
     state.kategoriler.forEach(cat => {
-        const icon = CATEGORY_ICONS[cat.kategori_adi.toLowerCase()] || '🍴';
+        const icon = getCategoryIcon(cat.kategori_adi);
+        const isActive = state.activeKategoriId === cat.id;
         html += `
-            <div class="category-card-box ${state.activeKategoriId === cat.id ? 'active' : ''}" onclick="selectCategory(${cat.id})">
+            <div class="category-card-box ${isActive ? 'active' : ''}" onclick="selectCategory(${cat.id})">
                 <span class="category-card-icon">${icon}</span>
                 <span class="category-card-title">${cat.kategori_adi}</span>
             </div>
@@ -242,31 +285,69 @@ function renderCategoryGrid() {
 function selectCategory(catId) {
     state.activeKategoriId = catId;
     renderCategoryGrid();
+    updateCategoryHeaderTitle(catId);
     loadProducts(catId);
 }
 
+function updateCategoryHeaderTitle(catId) {
+    const titleEl = document.getElementById('activeCategoryTitle');
+    if (!titleEl) return;
+    if (catId === null) {
+        titleEl.innerText = "Tümü";
+    } else {
+        const cat = state.kategoriler.find(c => c.id === catId);
+        titleEl.innerText = cat ? cat.kategori_adi : "Tümü";
+    }
+}
+
+// ÜRÜN KARTLARI (2 KOLONLU, SEÇİLİLER MAVİ PARLAYAN VE AÇIKLAMASIZ TASARIM)
 function renderProducts() {
     const grid = document.getElementById('productGrid');
     if (!grid) return;
 
     if (state.urunler.length === 0) {
-        grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-secondary); padding: 40px;">Ürün bulunmuyor.</div>`;
+        grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-secondary); padding: 40px; background: rgba(255,255,255,0.02); border-radius: 16px; border: 1px dashed var(--border-color);">Bu kategoride henüz ürün bulunmuyor.</div>`;
         return;
     }
 
     let html = '';
-    state.urunler.forEach(prod => {
+    const dummyRatings = ['4.9', '4.8', '5.0', '4.7', '4.9', '4.8'];
+
+    state.urunler.forEach((prod, index) => {
+        const catName = prod.kategori_adi ? prod.kategori_adi : '';
+        const icon = getCategoryIcon(catName);
+        const rating = dummyRatings[index % dummyRatings.length];
+        const hasImage = prod.gorsel_url && prod.gorsel_url.trim().length > 0;
+
+        // Sepette bu üründen kaç tane var?
+        const cartItems = state.cart.filter(item => item.urun_id === prod.id);
+        const inCartQty = cartItems.reduce((sum, item) => sum + item.adet, 0);
+        const isSelected = inCartQty > 0;
+
         html += `
-            <div class="product-card">
-                <div>
-                    <div class="product-title">${prod.urun_adi}</div>
-                    <div class="product-desc">${prod.aciklama || ''}</div>
+            <div class="product-card ${isSelected ? 'selected' : ''}" onclick="openProductNoteModal(${prod.id})">
+                <div class="product-card-image-box">
+                    ${hasImage
+                        ? `<img src="${prod.gorsel_url}" alt="${prod.urun_adi}" class="product-card-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                           <div class="product-card-placeholder" style="display:none;"><span>${icon}</span></div>`
+                        : `<div class="product-card-placeholder"><span>${icon}</span></div>`
+                    }
+                    <div class="product-badge-price">₺${prod.fiyat.toFixed(0)}</div>
+                    <div class="product-badge-rating">★ ${rating}</div>
                 </div>
-                <div class="product-footer">
-                    <div class="product-price">${prod.fiyat.toFixed(2)} ₺</div>
-                    <button class="btn-add" onclick="openProductNoteModal(${prod.id})">
-                        <span>+ Ekle / Seç</span>
-                    </button>
+                
+                <div class="product-card-body">
+                    <div class="product-title" title="${prod.urun_adi}">${prod.urun_adi}</div>
+                </div>
+
+                <div class="product-card-footer">
+                    <div class="product-price-bottom">₺${prod.fiyat.toFixed(0)}</div>
+                    <div class="product-card-footer-right">
+                        ${isSelected ? `<span class="product-cart-qty">${inCartQty}</span>` : ''}
+                        <button class="btn-add-circle ${isSelected ? 'active' : ''}" title="Sepete Ekle / Seç" onclick="event.stopPropagation(); openProductNoteModal(${prod.id})">
+                            <span>+</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         `;
@@ -448,7 +529,7 @@ function renderQuickNotesChips(catName, prodName) {
 
 function toggleNoteChip(text, group) {
     const noteInput = document.getElementById('modalProductNote');
-    
+
     if (group === 'temp') {
         state.activeNotes = state.activeNotes.filter(n => !n.includes('Soğuk') && !n.includes('Oda Sıcaklığında'));
         if (text.includes('Oda Sıcaklığında')) {
@@ -576,9 +657,12 @@ function updateCartUI() {
     if (cartDock) {
         cartDock.style.display = totalCount > 0 ? 'flex' : 'none';
     }
+
+    // Sepet değiştiğinde ürün kartlarındaki mavi neon seçili parlama ve adet rozetini güncelle
+    renderProducts();
 }
 
-window.changeModalQuantity = function(delta) {
+window.changeModalQuantity = function (delta) {
     const input = document.getElementById('modalQuantity');
     if (!input) return;
     let current = parseInt(input.value) || 1;
@@ -589,14 +673,25 @@ window.changeModalQuantity = function(delta) {
     updateModalCalculatedPrice();
 };
 
-window.updateCartItemQuantity = function(index, delta) {
+window.updateCartItemQuantity = function (index, delta) {
     if (!state.cart[index]) return;
-    state.cart[index].adet += delta;
-    if (state.cart[index].adet <= 0) {
-        state.cart.splice(index, 1);
+    
+    // Eğer adet 1 ise ve azaltılmak isteniyorsa onay isteyelim
+    if (state.cart[index].adet === 1 && delta === -1) {
+        if (confirm("Bu ürünü sepetten kaldırmak istiyor musunuz?")) {
+            state.cart.splice(index, 1);
+        } else {
+            return; // Adeti 1'de tut, silme işlemini iptal et
+        }
     } else {
-        state.cart[index].ara_toplam = state.cart[index].birim_fiyat * state.cart[index].adet;
+        state.cart[index].adet += delta;
+        if (state.cart[index].adet <= 0) {
+            state.cart.splice(index, 1);
+        } else {
+            state.cart[index].ara_toplam = state.cart[index].birim_fiyat * state.cart[index].adet;
+        }
     }
+    
     notifyCartUpdateToSocket();
     updateCartUI();
     openCartModal();
@@ -667,7 +762,7 @@ function openPaymentCheckout(method) {
     const totalAmount = state.cart.reduce((acc, item) => acc + item.ara_toplam, 0);
 
     document.getElementById('checkoutTotalAmount').innerText = `${totalAmount.toFixed(2)} ₺`;
-    
+
     let summaryHTML = '';
     state.cart.forEach(item => {
         summaryHTML += `
@@ -737,6 +832,7 @@ async function executeOrderSubmit(odemeYontemi) {
         masa_id: state.masaId,
         toplam_tutar: totalPrice,
         odeme_yontemi: odemeYontemi,
+        device_id: state.deviceId,
         urunler: state.cart.map(item => ({
             urun_id: item.urun_id,
             adet: item.adet,
@@ -758,7 +854,7 @@ async function executeOrderSubmit(odemeYontemi) {
             state.cart = [];
             state.currentOrder = data.siparis;
             updateCartUI();
-            
+
             renderOrderTrackingUI();
             playNotificationSound();
 
@@ -781,7 +877,7 @@ function renderOrderTrackingUI() {
     if (!container || !state.currentOrder) return;
 
     const status = state.currentOrder.siparis_durumu;
-    
+
     container.style.display = 'block';
 
     // Teslim edildi durumu
@@ -797,7 +893,7 @@ function renderOrderTrackingUI() {
         `;
         return;
     }
-    
+
     let currentStatusHTML = '';
 
     if (status === 'garson_onayi_bekliyor') {

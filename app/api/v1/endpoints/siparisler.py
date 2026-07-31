@@ -5,6 +5,8 @@ from app.schemas.schemas import SiparisOlusturModel, DurumGuncelleModel, Siparis
 
 router = APIRouter()
 
+from fastapi import HTTPException
+
 @router.post("/siparisler")
 async def create_siparis(data: SiparisOlusturModel, service: SiparisService = Depends()):
     full_order = await service.create_siparis(data)

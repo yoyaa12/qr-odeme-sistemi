@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from app.services.auth_service import AuthService
-from app.schemas.schemas import GarsonPinVerifyModel
+from app.schemas.schemas import GarsonPinVerifyModel, BanDeviceModel
 
 router = APIRouter()
 
@@ -12,3 +12,7 @@ async def verify_garson_pin(data: GarsonPinVerifyModel, service: AuthService = D
 @router.get("/garsonlar")
 async def get_garsonlar(service: AuthService = Depends()):
     return service.get_garsonlar()
+
+@router.post("/garson/ban-device")
+async def ban_device(data: BanDeviceModel, service: AuthService = Depends()):
+    return service.ban_device(data.device_id)

@@ -8,6 +8,7 @@ from app.core.socket_manager import clear_browsing_table
 from app.repositories.siparis_repo import SiparisRepository
 from app.repositories.masa_repo import MasaRepository
 from app.repositories.urun_repo import UrunRepository
+from app.repositories.auth_repo import AuthRepository
 from app.schemas.schemas import SiparisOlusturModel, DurumGuncelleModel, SiparisDuzenleModel
 from app.schemas.schemas import SiparisResponse, SiparisDetayResponse, SiparisDurumResponse
 from app.database import db_transaction
@@ -29,11 +30,13 @@ class SiparisService:
         self, 
         siparis_repo: SiparisRepository = Depends(),
         masa_repo: MasaRepository = Depends(),
-        urun_repo: UrunRepository = Depends()
+        urun_repo: UrunRepository = Depends(),
+        auth_repo: AuthRepository = Depends()
     ):
         self.siparis_repo = siparis_repo
         self.masa_repo = masa_repo
         self.urun_repo = urun_repo
+        self.auth_repo = auth_repo
 
     def _determine_initial_status(self, odeme_yontemi: str):
         odeme_durumu = "odendi" if odeme_yontemi == "pos" else "bekliyor"
@@ -94,6 +97,11 @@ class SiparisService:
             })
 
     async def create_siparis(self, data: SiparisOlusturModel) -> SiparisResponse:
+        if data.device_id:
+            banned = self.auth_repo.get_banned_device(data.device_id)
+            if banned:
+                raise HTTPException(status_code=403, detail="Erişiminiz engellendi. Cihazınız yasaklı.")
+
         with db_transaction():
             masa = self.masa_repo.get_by_id(data.masa_id)
             if not masa:
@@ -103,7 +111,7 @@ class SiparisService:
             odeme_durumu, siparis_durumu = self._determine_initial_status(data.odeme_yontemi)
 
             siparis_id = self.siparis_repo.create_siparis(
-                data.masa_id, siparis_kodu, data.toplam_tutar, odeme_durumu, siparis_durumu
+                data.masa_id, siparis_kodu, data.toplam_tutar, odeme_durumu, siparis_durumu, data.device_id
             )
 
             if not siparis_id:
@@ -124,6 +132,7 @@ class SiparisService:
                 "siparis_durumu": siparis_durumu,
                 "olusturma_tarihi": datetime.datetime.now().strftime("%H:%M:%S"),
                 "garson_adi": None,
+                "device_id": data.device_id,
                 "detaylar": detaylar
             }
             full_order = SiparisResponse.model_validate(full_order_dict)
@@ -244,3 +253,17 @@ class SiparisService:
 
         await event_bus.publish("durum_guncellendi", event_payload)
         return s_dto
+
+    async def move_masa(self, from_masa_id: int, to_masa_id: int):
+        with db_transaction():
+            self.siparis_repo.move_orders_between_masalar(from_masa_id, to_masa_id)
+            self.masa_repo.update_durum(to_masa_id, 'dolu')
+            
+            unpaid_cnt = self.siparis_repo.get_unpaid_count_for_masa(from_masa_id)
+            if unpaid_cnt == 0:
+                self.masa_repo.update_durum(from_masa_id, 'bos')
+                clear_browsing_table(from_masa_id)
+        
+        await event_bus.publish("masa_durumu_degisti", {"masa_id": from_masa_id, "durum": "bos"})
+        await event_bus.publish("masa_durumu_degisti", {"masa_id": to_masa_id, "durum": "dolu"})
+        await event_bus.publish("durum_guncellendi", {"from_masa_id": from_masa_id, "to_masa_id": to_masa_id})

@@ -26,3 +26,11 @@ class AuthService:
     def get_garsonlar(self) -> List[KullaniciResponse]:
         garsonlar = self.repo.get_all_garsonlar()
         return [KullaniciResponse(**g) for g in garsonlar] if garsonlar else []
+
+    def ban_device(self, device_id: str):
+        existing = self.repo.get_banned_device(device_id)
+        if existing:
+            return {"status": "success", "message": "Cihaz zaten yasaklı."}
+        
+        self.repo.ban_device(device_id)
+        return {"status": "success", "message": "Cihaz başarıyla yasaklandı."}

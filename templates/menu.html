@@ -6,7 +6,7 @@
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Müşteri QR Menüsü</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/style.css?v=11">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 
@@ -21,27 +21,42 @@
             </svg>
             <span>Lezzet Dünyası Restoran</span>
         </div>
-        <div id="tableBadge" class="table-badge">
-            🪑 Masa 1
-        </div>
     </header>
 
-    <!-- CONTAINER (ALTTA SABİT BAR İÇİN BOŞLUKLU) -->
-    <main class="container">
+    <!-- CONTAINER (SOL SİDEBAR + SAĞ İÇERİK KATEGORİ SİSTEMİ) -->
+    <main class="menu-layout-container">
 
         <!-- CANLI SİPARİŞ TAKİP ALANI (F5 İLE KAYBOLMAZ, SİPARİŞ DETAYLARINI İÇERİR) -->
         <div id="orderTrackingContainer" style="display: none;">
             <!-- Canlı takip ve sipariş detayları JS ile render edilir -->
         </div>
 
-        <!-- KUTU KUTU GÖRSELLİ KATEGORİ KARTLARI -->
-        <div id="categoryGridBar" class="category-grid-bar">
-            <!-- Kategoriler JS ile gelecek -->
-        </div>
+        <!-- ARAYÜZ SPLIT YAPISI (SOL: KATEGORİLER DİKEY, SAĞ: İÇERİKLER/ÜRÜNLER) -->
+        <div class="menu-split-layout">
 
-        <!-- ÜRÜN GRID -->
-        <div id="productGrid" class="product-grid">
-            <!-- Ürünler JS ile gelecek -->
+            <!-- SOL DİKEY KATEGORİ SİDEBAR'I (EN ALTTA PİNLİ MASA ROZETİ) -->
+            <aside class="category-sidebar-wrapper">
+                <div id="categoryGridBar" class="category-sidebar-list">
+                    <!-- Kategoriler JS ile dikey kartlar olarak gelecek -->
+                </div>
+                <div id="tableBadge" class="table-badge-sidebar">
+                    🪑 Masa 1
+                </div>
+            </aside>
+
+            <!-- SAĞ ÜRÜNLER İÇERİK ALANI -->
+            <section class="menu-products-section">
+                <!-- SEÇİLİ KATEGORİ BAŞLIĞI -->
+                <div class="category-header-title">
+                    <h2 id="activeCategoryTitle">Tümü</h2>
+                </div>
+
+                <!-- ÜRÜN GRID -->
+                <div id="productGrid" class="product-grid">
+                    <!-- Ürünler JS ile gelecek -->
+                </div>
+            </section>
+
         </div>
     </main>
 
@@ -230,7 +245,7 @@
         </div>
     </div>
 
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js?v=13"></script>
 </body>
 
 </html>
