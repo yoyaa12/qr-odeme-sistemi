@@ -21,7 +21,10 @@
             <span>Garson</span>
         </div>
         <div style="display: flex; align-items: center; gap: 10px;">
-
+            <div id="activeGarsonBadge" style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; font-weight: 700; background: rgba(99, 102, 241, 0.15); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.4); padding: 4px 10px; border-radius: 8px;">
+                <span>🔑 Giriş Yapılmadı</span>
+            </div>
+            <button id="garsonLogoutBtn" type="button" onclick="logoutGarson()" style="display: none; background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); padding: 4px 8px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; cursor: pointer;">Çıkış</button>
             <span id="socketStatusBadge" style="font-size: 1.1rem; color: var(--danger); cursor: pointer;" title="Bağlantı Kuruluyor...">🔴</span>
         </div>
     </header>

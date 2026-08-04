@@ -35,3 +35,32 @@ async def move_masa(data: MoveMasaModel, siparis_service: SiparisService = Depen
 async def clear_masa(masa_id: int, siparis_service: SiparisService = Depends()):
     await siparis_service.clear_masa(masa_id)
     return {"status": "success", "message": "Masa oturumu sonlandırıldı."}
+
+class VerifyQRModel(BaseModel):
+    token: str
+
+@router.get("/masalar/all-dynamic-qrs")
+async def get_all_dynamic_qrs(masa_service: MasaService = Depends()):
+    """Tüm masaların canlı 30 saniyelik Dinamik QR verilerini döner."""
+    return masa_service.get_all_dynamic_qrs()
+
+@router.get("/masalar/{masa_id}/dynamic-qr")
+async def get_dynamic_qr(masa_id: int, masa_service: MasaService = Depends()):
+    """Masadaki dijital ekran veya Kasa simülatörü için canlı Dinamik QR bilgisini döner."""
+    return masa_service.get_dynamic_qr_info(masa_id)
+
+@router.post("/masalar/{masa_id}/verify-qr")
+async def verify_dynamic_qr(masa_id: int, data: VerifyQRModel, masa_service: MasaService = Depends()):
+    """Müşteri QR okuttuğunda gönderdiği dynamic token'ı doğrular."""
+    is_valid = masa_service.verify_dynamic_qr_token(masa_id, data.token)
+    if is_valid:
+        return {
+            "valid": True,
+            "message": "Dinamik QR başarıyla doğrulandı.",
+            "masa_id": masa_id
+        }
+    return {
+        "valid": False,
+        "message": "Geçersiz veya süresi dolmuş QR kodu! Lütfen masadaki güncel QR kodunu tekrar okutunuz."
+    }
+

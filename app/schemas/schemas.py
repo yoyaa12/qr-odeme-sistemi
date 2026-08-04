@@ -96,6 +96,7 @@ class UrunResponse(BaseModel):
 class KategoriResponse(BaseModel):
     id: int
     kategori_adi: str
+    gorsel_url: Optional[str] = None
 
 class MasaResponse(BaseModel):
     id: int
@@ -116,4 +117,14 @@ class KullaniciResponse(BaseModel):
     kullanici_adi: Optional[str] = None
     garson_adi: Optional[str] = None
     rol: Optional[str] = None
+
+class SiparisIslemCevapModel(BaseModel):
+    status: str
+    message: str
+    siparis: SiparisResponse
+
+class SiparisDurumIslemCevapModel(BaseModel):
+    status: str
+    message: str
+    data: SiparisDurumResponse
 

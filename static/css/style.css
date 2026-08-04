@@ -46,6 +46,18 @@
     -webkit-tap-highlight-color: transparent;
 }
 
+/* Number Input'lardaki sağdaki ok (spinner) tuşlarını gizle */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type=number] {
+    -moz-appearance: textfield;
+    /* Firefox */
+}
+
 html,
 body {
     overscroll-behavior-y: contain;
@@ -173,9 +185,11 @@ textarea:focus {
 .menu-layout-container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 12px 10px 10px 10px;
+    padding: 8px 6px 8px 2px;
     width: 100%;
-    height: calc(100vh - 65px);
+    height: calc(100vh - 56px);
+    height: calc(100svh - 56px);
+    height: calc(100dvh - 56px);
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -185,21 +199,21 @@ textarea:focus {
     flex: 1;
     min-height: 0;
     display: flex;
-    gap: 12px;
+    gap: 8px;
     align-items: stretch;
     overflow: hidden;
 }
 
 /* SOL KATEGORİ SİDEBARI (EN ALTTA PİNLİ MASA BADGE) */
 .category-sidebar-wrapper {
-    width: 105px;
+    width: 95px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     height: 100%;
     overflow: hidden;
-    padding-bottom: 4px;
+    padding-bottom: max(4px, env(safe-area-inset-bottom));
 }
 
 .category-sidebar-list {
@@ -209,7 +223,7 @@ textarea:focus {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    padding-right: 2px;
+    padding: 4px 4px 4px 0px;
     scrollbar-width: thin;
     scrollbar-color: rgba(6, 182, 212, 0.3) transparent;
     -webkit-overflow-scrolling: touch;
@@ -242,57 +256,89 @@ textarea:focus {
 }
 
 .category-card-box {
-    background: #141c2e;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(22, 29, 45, 0.45);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 16px;
-    padding: 12px 6px;
+    padding: 10px 4px;
+    min-height: 76px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 4px;
     cursor: pointer;
-    transition: transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     text-align: center;
     user-select: none;
-    contain: layout style;
+    position: relative;
+    overflow: hidden;
+}
+
+.category-card-img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 1;
+    transition: transform 0.4s ease, filter 0.4s ease;
+    filter: brightness(0.5);
+}
+
+.category-card-box:hover .category-card-img {
+    transform: scale(1.15);
+    filter: brightness(0.65);
+}
+
+.category-card-box.active .category-card-img {
+    filter: brightness(0.7);
+    transform: scale(1.08);
 }
 
 .category-card-box:hover {
-    background: #1e293b;
-    border-color: rgba(6, 182, 212, 0.4);
-    transform: translateY(-1px);
+    border-color: rgba(245, 158, 11, 0.6);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
 }
 
 .category-card-box.active {
-    background: linear-gradient(135deg, rgba(6, 182, 212, 0.25), rgba(14, 165, 233, 0.35));
-    border: 1.5px solid #06b6d4;
-    box-shadow: 0 0 16px rgba(6, 182, 212, 0.35);
-    transform: scale(1.02);
+    border: 2px solid var(--primary);
+    background: rgba(22, 29, 45, 0.45);
+    box-shadow: 0 0 4px var(--primary);
+    transform: none;
 }
 
 .category-card-icon {
-    font-size: 1.8rem;
+    position: relative;
+    z-index: 2;
+    font-size: 1.6rem;
     transition: transform 0.2s ease;
 }
 
 .category-card-box.active .category-card-icon {
-    filter: drop-shadow(0 0 8px rgba(6, 182, 212, 0.8));
-    transform: scale(1.1);
+    filter: drop-shadow(0 0 10px rgba(245, 158, 11, 0.8));
+    transform: scale(1.15);
 }
 
 .category-card-title {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: #94a3b8;
+    position: relative;
+    z-index: 2;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #ffffff;
     line-height: 1.2;
     word-break: break-word;
+    text-shadow: 0 2px 5px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.8);
+    transition: color 0.3s ease;
 }
 
 .category-card-box.active .category-card-title {
-    color: #22d3ee;
+    color: var(--primary);
     font-weight: 800;
-    text-shadow: 0 0 8px rgba(34, 211, 238, 0.4);
+    text-shadow: 0 0 8px rgba(245, 158, 11, 0.7), 0 2px 4px rgba(0, 0, 0, 1);
 }
 
 /* SAĞ ÜRÜN İÇERİK ALANI (BAĞIMSIZ KUSURSUZ ULTRA AKICI KAYDIRMA) */
@@ -329,29 +375,31 @@ textarea:focus {
 }
 
 .product-card {
-    background: rgba(11, 19, 32, 0.85);
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 14px;
-    padding: 5px;
+    border-radius: 18px;
+    padding: 6px;
     display: flex;
     flex-direction: column;
     position: relative;
     cursor: pointer;
-    transition: transform 0.15s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
 }
 
 .product-card:hover {
-    border-color: rgba(6, 182, 212, 0.4);
-    box-shadow: 0 0 14px rgba(6, 182, 212, 0.2);
-    transform: translateY(-2px);
+    border-color: rgba(245, 158, 11, 0.5);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), 0 0 15px rgba(245, 158, 11, 0.15);
+    transform: translateY(-4px);
 }
 
-/* SEPETE EKLENMİŞ SEÇİLİ ÜRÜN KARTI (FOTOĞRAFTAKİ PARLAYAN CANLI SİYAN/MAVİ NERO IŞIK) */
+/* SEPETE EKLENMİŞ SEÇİLİ ÜRÜN KARTI (FOTOĞRAFTAKİ PARLAYAN CANLI AMBER IŞIK) */
 .product-card.selected {
-    background: linear-gradient(135deg, rgba(6, 182, 212, 0.16), rgba(11, 19, 32, 0.95)) !important;
-    border: 2px solid #06b6d4 !important;
-    box-shadow: 0 0 18px rgba(6, 182, 212, 0.55), inset 0 0 10px rgba(6, 182, 212, 0.25) !important;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(15, 23, 42, 0.9)) !important;
+    border: 2px solid var(--primary) !important;
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.4), inset 0 0 12px rgba(245, 158, 11, 0.2) !important;
 }
 
 .product-card-image-box {
@@ -395,29 +443,22 @@ textarea:focus {
 }
 
 .product-badge-rating {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    background: rgba(11, 15, 25, 0.85);
-    backdrop-filter: blur(8px);
-    padding: 1px 5px;
-    border-radius: 6px;
-    font-size: 0.68rem;
-    font-weight: 800;
-    color: #fbbf24;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    display: none !important;
 }
 
 .product-card-body {
     padding: 4px 2px 2px 2px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
 .product-title {
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     font-weight: 700;
     color: #fff;
     line-height: 1.25;
-    margin-bottom: 2px;
+    margin-bottom: 4px;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -425,7 +466,6 @@ textarea:focus {
     text-overflow: ellipsis;
     white-space: normal;
     word-break: break-word;
-    min-height: 2.4em;
 }
 
 .product-desc {
@@ -433,17 +473,11 @@ textarea:focus {
 }
 
 .product-card-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 2px 0 0 0;
-    margin-top: 2px;
+    display: none !important;
 }
 
 .product-price-bottom {
-    font-size: 0.95rem;
-    font-weight: 800;
-    color: #22d3ee;
+    display: none !important;
 }
 
 .product-card-footer-right {
@@ -453,14 +487,14 @@ textarea:focus {
 }
 
 .product-cart-qty {
-    background: rgba(6, 182, 212, 0.2);
-    border: 1.5px solid #06b6d4;
+    background: rgba(245, 158, 11, 0.2);
+    border: 1.5px solid var(--primary);
     color: #ffffff;
     font-size: 0.82rem;
     font-weight: 800;
     padding: 3px 8px;
     border-radius: 8px;
-    box-shadow: 0 0 10px rgba(6, 182, 212, 0.4);
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
 }
 
 .btn-add-circle {
@@ -476,15 +510,15 @@ textarea:focus {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-add-circle.active {
-    background: #06b6d4 !important;
+    background: var(--primary) !important;
     border: none !important;
-    color: #080c14 !important;
+    color: #000 !important;
     font-weight: 900 !important;
-    box-shadow: 0 0 12px rgba(6, 182, 212, 0.7) !important;
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.7) !important;
 }
 
 .btn-add-circle:hover {
@@ -627,44 +661,48 @@ textarea:focus {
 /* BOTTOM STICKY CART DOCK (EKRAN ALTI İLE ÇAKIŞMAYAN SABİT BAR) */
 .cart-bottom-dock {
     position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: rgba(11, 15, 25, 0.95);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border-top: 1.5px solid var(--border-color);
-    padding: 12px 16px;
-    z-index: 99;
-    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.6);
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 400px;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 100px;
+    padding: 8px 10px;
+    z-index: 150;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 20px rgba(245, 158, 11, 0.25);
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .btn-cart-dock {
     width: 100%;
-    max-width: 600px;
-    background: linear-gradient(135deg, var(--primary), #d97706);
+    background: transparent;
+    border: none;
     color: #fff;
-    padding: 14px 20px;
-    border-radius: var(--radius-md);
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    box-shadow: 0 6px 20px var(--primary-glow);
-    transition: var(--transition);
+    align-items: center;
+    cursor: pointer;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-cart-dock:hover {
-    transform: scale(1.01);
+    transform: scale(1.02);
 }
 
 .cart-dock-price {
     font-size: 1.15rem;
     font-weight: 800;
-    background: rgba(0, 0, 0, 0.25);
-    padding: 6px 14px;
-    border-radius: var(--radius-full);
+    color: #000;
+    background: linear-gradient(135deg, var(--primary), #d97706);
+    padding: 8px 18px;
+    border-radius: 100px;
+    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.5);
 }
 
 .cart-count-badge {
@@ -683,8 +721,9 @@ textarea:focus {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.8);
-    backdrop-filter: blur(10px);
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -692,7 +731,7 @@ textarea:focus {
     padding: 16px;
     opacity: 0;
     pointer-events: none;
-    transition: var(--transition);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .modal-overlay.active {
@@ -701,21 +740,23 @@ textarea:focus {
 }
 
 .modal-content {
-    background: #161e31;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
+    background: rgba(22, 30, 49, 0.95);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 24px;
     width: 100%;
     max-width: 520px;
     padding: 24px;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
-    transform: translateY(20px);
-    transition: var(--transition);
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), inset 0 0 15px rgba(255, 255, 255, 0.05);
+    transform: translateY(30px) scale(0.98);
+    transition: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     max-height: 90vh;
     overflow-y: auto;
 }
 
 .modal-overlay.active .modal-content {
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
 }
 
 .modal-header {
@@ -1185,26 +1226,29 @@ textarea:focus {
 
 .toast-notification-waiter {
     position: fixed;
-    bottom: 24px;
-    right: 24px;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
     background: linear-gradient(135deg, #10b981, #047857);
     color: #fff;
-    padding: 16px 28px;
-    border-radius: 16px;
+    padding: 12px 24px;
+    border-radius: 12px;
     font-weight: 800;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-    z-index: 9999;
-    animation: toastSlideIn 0.3s ease-out;
+    font-size: 0.95rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    z-index: 99999;
+    pointer-events: none;
+    animation: toastSlideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-@keyframes toastSlideIn {
+@keyframes toastSlideDown {
     from {
-        transform: translateY(20px);
+        transform: translate(-50%, -20px);
         opacity: 0;
     }
 
     to {
-        transform: translateY(0);
+        transform: translate(-50%, 0);
         opacity: 1;
     }
 }
@@ -2042,4 +2086,225 @@ textarea:focus {
 .shortcut-chip:hover {
     background: rgba(255, 255, 255, 0.18);
     color: #fff;
+}
+
+/* KATEGORİ ARKA PLAN GÖRSELİ & TEMİZ ALT BAŞLIK HİZALAMASI */
+.category-card-box {
+    position: relative !important;
+    overflow: hidden !important;
+    justify-content: flex-end !important;
+    padding: 0 !important;
+    min-height: 84px !important;
+}
+
+.category-card-img {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    z-index: 1 !important;
+    transition: transform 0.3s ease, filter 0.3s ease !important;
+    filter: brightness(0.75) !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+}
+
+.category-card-box:hover .category-card-img {
+    transform: scale(1.12) !important;
+    filter: brightness(0.85) !important;
+}
+
+.category-card-box.active .category-card-img {
+    filter: brightness(0.9) !important;
+    transform: scale(1.05) !important;
+}
+
+.category-card-icon {
+    position: relative !important;
+    z-index: 2 !important;
+    margin-top: 12px !important;
+    margin-bottom: 4px !important;
+}
+
+.category-card-title {
+    position: relative !important;
+    z-index: 2 !important;
+    width: 100% !important;
+    font-size: 0.78rem !important;
+    font-weight: 800 !important;
+    color: #ffffff !important;
+    line-height: 1.2 !important;
+    word-break: break-word !important;
+    padding: 16px 4px 6px 4px !important;
+    background: linear-gradient(to top, rgba(11, 15, 25, 0.95) 0%, rgba(11, 15, 25, 0.65) 65%, transparent 100%) !important;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9) !important;
+}
+
+.category-card-box.active .category-card-title {
+    color: #06b6d4 !important;
+    font-weight: 900 !important;
+    text-shadow: 0 0 8px rgba(6, 182, 212, 0.8) !important;
+}
+
+/* ==========================================================================
+   KASA / POS EKRAAN KİLİTLEME & DÜZEN KAYMALARINI ÖNLEME STİLLERİ
+   ========================================================================== */
+html,
+body.vega-kasa-body {
+    height: 100vh !important;
+    max-height: 100vh !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+}
+
+.vega-navbar {
+    flex-shrink: 0 !important;
+    height: 60px !important;
+    min-height: 60px !important;
+    max-height: 60px !important;
+}
+
+.vega-pos-container {
+    height: calc(100vh - 60px) !important;
+    max-height: calc(100vh - 60px) !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+/* ÖDEMEYİ AL BUTONU HOVER BÜYÜME KAYMASINI ENGELLEME */
+#btnMainOdemeyiAl:hover,
+.vega-ticket-section .btn-add:hover {
+    transform: none !important;
+    background: linear-gradient(135deg, #059669, #0284c7) !important;
+    box-shadow: 0 4px 20px rgba(16, 185, 129, 0.6) !important;
+}
+
+/* SAĞ DETAY PANELİ DİK ALAN HİZALAMASI & TAŞMA ENGELİ */
+.masa-detay-right {
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+}
+
+/* ==========================================================================
+   YAZDIRMA (PRINT / POS THERMAL PRINTER 80MM) MEDYA SORGULARI
+   ========================================================================== */
+@media print {
+    @page {
+        size: 80mm auto;
+        margin: 0mm !important;
+    }
+
+    html,
+    body {
+        width: 80mm !important;
+        max-width: 80mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Sayfadaki tüm Web arayüz elemanlarını, butonları ve başlıkları gizle */
+    body * {
+        visibility: hidden !important;
+    }
+
+    .no-print,
+    .modal-close,
+    .navbar,
+    .btn-add,
+    .shortcut-chip,
+    button,
+    header,
+    main {
+        display: none !important;
+    }
+
+    /* Sadece fiş metni alanını ve çocuklarını görünür yap */
+    #printReceiptModal,
+    #printReceiptModal .modal-content,
+    #receiptPrintArea,
+    #receiptPrintArea * {
+        visibility: visible !important;
+    }
+
+    #printReceiptModal {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 80mm !important;
+        max-width: 80mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        box-shadow: none !important;
+        border: none !important;
+    }
+
+    #printReceiptModal .modal-content {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 80mm !important;
+        max-width: 80mm !important;
+        margin: 0 !important;
+        padding: 3mm 4mm !important;
+        border: none !important;
+        box-shadow: none !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        box-sizing: border-box !important;
+    }
+
+    #receiptPrintArea {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        color: #000000 !important;
+        font-family: 'Courier New', Courier, monospace !important;
+        font-size: 11px !important;
+        line-height: 1.3 !important;
+    }
+}
+
+/* GÖRSEL MASA TAŞIMA MODU STİLLERİ */
+.move-mode-banner {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(79, 70, 229, 0.35));
+    border: 1.5px solid #6366f1;
+    border-radius: 12px;
+    padding: 10px 16px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    animation: movePulse 1.5s infinite alternate;
+}
+
+@keyframes movePulse {
+    from {
+        box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+    }
+
+    to {
+        box-shadow: 0 0 20px rgba(99, 102, 241, 0.8);
+    }
+}
+
+.vega-table-card.source-selected {
+    border: 2px solid #38bdf8 !important;
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.8) !important;
+    transform: scale(1.03) !important;
 }

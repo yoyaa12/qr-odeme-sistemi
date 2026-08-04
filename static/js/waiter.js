@@ -142,20 +142,35 @@ document.addEventListener('DOMContentLoaded', () => {
 // -------------------------------------------------------------
 // 6 HANELİ GARSON PIN YÖNETİMİ & NUMPAD LOGIC (HER İŞLEMDE PIN SORULUR)
 // -------------------------------------------------------------
-function restoreGarsonSession() {
-    // Statik kalıcı oturum tutulmaz, her işlemde PIN sorulur!
-    localStorage.removeItem('activeGarsonSession');
-    activeGarson = null;
-    updateGarsonBadge();
+function touchGarsonActivity() {
+    if (activeGarson) {
+        try {
+            localStorage.setItem('activeGarsonSession', JSON.stringify({
+                garson: activeGarson,
+                lastActivity: Date.now()
+            }));
+        } catch (e) {}
+    }
 }
 
-function updateGarsonBadge() {
-    const badge = document.getElementById('activeGarsonBadge');
-    if (badge) {
-        badge.innerHTML = `🔑 Her İşlemde Garson PIN Sorulur`;
-        badge.style.borderColor = 'var(--primary)';
-        badge.style.color = 'var(--primary)';
-    }
+function restoreGarsonSession() {
+    try {
+        const stored = localStorage.getItem('activeGarsonSession');
+        if (stored) {
+            const data = JSON.parse(stored);
+            const ONE_HOUR = 60 * 60 * 1000;
+            if (data && data.garson && data.lastActivity && (Date.now() - data.lastActivity < ONE_HOUR)) {
+                activeGarson = data.garson;
+                touchGarsonActivity();
+                updateActiveGarsonBadge();
+                return true;
+            }
+        }
+    } catch (e) {}
+    localStorage.removeItem('activeGarsonSession');
+    activeGarson = null;
+    updateActiveGarsonBadge();
+    return false;
 }
 
 window.openGarsonPinModal = function (callback = null) {
@@ -238,12 +253,13 @@ async function submitGarsonPin() {
 
             const person = data.garson; // { garson_adi: 'Yiğit' / 'Berat' / 'Ahmet', rol: 'garson' / 'admin' }
             activeGarson = person;
+            touchGarsonActivity();
             updateActiveGarsonBadge();
             const actionToExecute = pendingActionCallback;
 
             setTimeout(() => {
                 closeGarsonPinModal();
-                showWaiterToast(`🔑 PIN Doğrulandı (${person.garson_adi}) - İşlem yapılıyor... 🚀`);
+                showWaiterToast(`🔑 PIN Doğrulandı (${person.garson_adi}) - Oturum Açıldı 🚀`);
                 if (typeof actionToExecute === 'function') {
                     actionToExecute(person);
                 }
@@ -273,8 +289,14 @@ async function submitGarsonPin() {
 }
 
 function requireGarsonPin(actionCallback) {
-    // Her masaya tıklandığında ve her işlemde her zaman PIN sorulur
-    openGarsonPinModal(actionCallback);
+    if (restoreGarsonSession()) {
+        touchGarsonActivity();
+        if (typeof actionCallback === 'function') {
+            actionCallback(activeGarson);
+        }
+    } else {
+        openGarsonPinModal(actionCallback);
+    }
 }
 
 function updateWaiterSocketBadge(isConnected) {
@@ -940,11 +962,28 @@ window.saveEditedOrder = async function () {
 
 function updateActiveGarsonBadge() {
     const badge = document.getElementById('activeGarsonBadge');
-    if (!badge) return;
-    badge.style.display = 'none';
+    const logoutBtn = document.getElementById('garsonLogoutBtn');
+    if (activeGarson) {
+        if (badge) {
+            badge.innerHTML = `👤 ${activeGarson.garson_adi}`;
+            badge.style.background = 'rgba(16, 185, 129, 0.15)';
+            badge.style.color = '#34d399';
+            badge.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+        }
+        if (logoutBtn) logoutBtn.style.display = 'block';
+    } else {
+        if (badge) {
+            badge.innerHTML = `🔑 Giriş Yapılmadı`;
+            badge.style.background = 'rgba(99, 102, 241, 0.15)';
+            badge.style.color = '#a5b4fc';
+            badge.style.borderColor = 'rgba(99, 102, 241, 0.4)';
+        }
+        if (logoutBtn) logoutBtn.style.display = 'none';
+    }
 }
 
 window.logoutGarson = function () {
+    localStorage.removeItem('activeGarsonSession');
     activeGarson = null;
     updateActiveGarsonBadge();
     showWaiterToast("Garson oturumu kapatıldı.");

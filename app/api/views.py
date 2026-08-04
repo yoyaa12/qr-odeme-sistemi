@@ -15,6 +15,15 @@ def get_html_content(filename: str):
 async def home_page():
     return get_html_content("index.html")
 
+from fastapi.responses import HTMLResponse, RedirectResponse
+
+@router.get("/m/{masa_id}")
+async def masa_qr_redirect(masa_id: int, token: str = None):
+    url = f"/menu?masa={masa_id}"
+    if token:
+        url += f"&token={token}"
+    return RedirectResponse(url=url)
+
 @router.get("/menu", response_class=HTMLResponse)
 async def customer_menu_page():
     return get_html_content("menu.html")

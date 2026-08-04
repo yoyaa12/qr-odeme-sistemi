@@ -6,7 +6,7 @@
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Müşteri QR Menüsü</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=11">
+    <link rel="stylesheet" href="/static/css/style.css?v=72">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 
@@ -42,6 +42,10 @@
                 <div id="tableBadge" class="table-badge-sidebar">
                     🪑 Masa 1
                 </div>
+                <button type="button" class="rulet-sidebar-btn" onclick="MasaRuleti.open()"
+                    style="display: none !important; margin-top: 8px; width: 100%; background: linear-gradient(135deg, #ffbc00, #ff8c00); color: #111; border: none; padding: 10px; border-radius: var(--radius-md); font-weight: 800; font-size: 0.85rem; cursor: pointer; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 4px 12px rgba(255,140,0,0.3);">
+                    🎰 Rulet Çevir
+                </button>
             </aside>
 
             <!-- SAĞ ÜRÜNLER İÇERİK ALANI -->
@@ -97,63 +101,81 @@
     </div>
 
     <!-- 1. ÜRÜN DETAY & OPSİYON MODALİ -->
-    <div id="productModal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="modalProductTitle" style="font-size: 1.3rem;">Ürün Adı</h3>
-                <button class="modal-close" onclick="closeModal('productModal')">✖</button>
-            </div>
-            <p id="modalProductDesc" style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;"></p>
+    <div id="productModal" class="modal-overlay" style="align-items: flex-start; padding-top: 4vh;">
+        <div class="modal-content"
+            style="padding: 0; overflow: hidden; max-height: calc(100% - 40px); display: flex; flex-direction: column;">
+            <button class="modal-close" onclick="closeModal('productModal')"
+                style="position: absolute; top: 12px; right: 12px; background: rgba(0,0,0,0.6); border: none; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; color: #fff; z-index: 100; cursor: pointer;">✖</button>
 
-            <div style="font-size: 1.5rem; font-weight: 800; color: #fbbf24; margin-bottom: 16px;"
-                id="modalProductPrice">0.00 ₺</div>
-
-            <!-- PIZZA BOYUT SEÇİM ALANI -->
-            <div id="pizzaSizeSection" style="display: none; margin-bottom: 16px;">
-                <div class="option-section-title">🍕 Pizza Boyutu Seçin (Çap & Kişi Sayısı)</div>
-                <div id="pizzaSizeGrid" class="size-options-grid"></div>
-            </div>
-
-            <!-- PORSIYON SEÇİM ALANI (YEMEKLER İÇİN) -->
-            <div id="portionSizeSection" style="display: none; margin-bottom: 16px;">
-                <div class="option-section-title">🍽️ Porsiyon Miktarı Seçin</div>
-                <div id="portionSizeGrid" class="size-options-grid"></div>
-            </div>
-
-            <!-- TATLI EKSTRA OPSİYON ALANI -->
-            <div id="dessertExtrasSection" style="display: none; margin-bottom: 16px;">
-                <div class="option-section-title">🍨 Ekstra Malzemeler (Fiyata Eklenecek)</div>
-                <div id="dessertExtrasList" class="extras-list"></div>
-            </div>
-
-            <!-- ADET SEÇİMİ -->
-            <div style="margin-bottom: 16px;">
-                <label
-                    style="display:block; font-size:0.85rem; font-weight:700; color:var(--text-secondary); margin-bottom:6px;">Adet</label>
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <button type="button" onclick="window.changeModalQuantity(-1)"
-                        style="width:48px; height:48px; font-size:1.6rem; font-weight:800; border-radius:var(--radius-md); background:rgba(255,255,255,0.12); border:1px solid var(--border-color); color:#fff; cursor:pointer; user-select:none; touch-action:manipulation;">-</button>
-                    <input type="number" id="modalQuantity" value="1" min="1" max="20" readonly
-                        style="flex:1; text-align:center; font-size: 1.3rem; font-weight: 800; background:rgba(0,0,0,0.2); border:1px solid var(--border-color); color:#fff; cursor:default; user-select:none;"
-                        onchange="updateModalCalculatedPrice()">
-                    <button type="button" onclick="window.changeModalQuantity(1)"
-                        style="width:48px; height:48px; font-size:1.6rem; font-weight:800; border-radius:var(--radius-md); background:rgba(255,255,255,0.12); border:1px solid var(--border-color); color:#fff; cursor:pointer; user-select:none; touch-action:manipulation;">+</button>
+            <div id="modalScrollArea" style="overflow-y: auto; flex: 1; display: flex; flex-direction: column;">
+                <div style="position: relative; flex-shrink: 0; width: 100%;">
+                    <img id="modalProductImage" src="" alt="Ürün Görseli"
+                        style="width: 100%; height: 240px; object-fit: cover; display: none;">
                 </div>
-            </div>
+                <div style="padding: 24px; padding-top: 16px;">
+                    <h3 id="modalProductTitle" style="font-size: 1.5rem; font-weight: 900; margin-bottom: 16px;">Ürün
+                        Adı</h3>
+                    <div id="modalProductDesc" style="display: none !important;"></div>
 
-            <!-- DİNAMİK ÇİPLER VE ÖZEL NOT -->
-            <div class="note-input-group">
-                <label>✏️ Özel İstek / Not Seçin (Tıklayıp Kaldırabilirsiniz)</label>
-                <div id="quickNotesContainer" class="quick-notes" style="margin-bottom: 12px;"></div>
-                <input type="text" id="modalProductNote" placeholder="Varsa ekstra özel notunuz..."
-                    style="width: 100%;">
-            </div>
+                    <!-- PIZZA BOYUT SEÇİM ALANI -->
+                    <div id="pizzaSizeSection" style="display: none; margin-bottom: 16px;">
+                        <div class="option-section-title">🍕 Pizza Boyutu Seçin (Çap & Kişi Sayısı)</div>
+                        <div id="pizzaSizeGrid" class="size-options-grid"></div>
+                    </div>
 
-            <button class="btn-add"
-                style="width: 100%; justify-content: center; margin-top: 24px; padding: 14px; font-size: 1rem;"
-                onclick="confirmAddToCart()">
-                Sepete Ekle
-            </button>
+                    <!-- PIZZA HEDİYE İÇECEK SEÇİM ALANI -->
+                    <div id="pizzaFreeDrinkSection" style="display: none; margin-bottom: 16px;">
+                        <div class="option-section-title" id="freeDrinkTitle">🎁 Hediye İçecek Seçiniz (Ücretsiz)</div>
+                        <div id="pizzaFreeDrinkGrid" class="size-options-grid"></div>
+                    </div>
+
+                    <!-- PORSIYON SEÇİM ALANI (YEMEKLER İÇİN) -->
+                    <div id="portionSizeSection" style="display: none; margin-bottom: 16px;">
+                        <div class="option-section-title">🍽️ Porsiyon Miktarı Seçin</div>
+                        <div id="portionSizeGrid" class="size-options-grid"></div>
+                    </div>
+
+                    <!-- TATLI EKSTRA OPSİYON ALANI -->
+                    <div id="dessertExtrasSection" style="display: none; margin-bottom: 16px;">
+                        <div class="option-section-title">🍨 Ekstra Malzemeler (Fiyata Eklenecek)</div>
+                        <div id="dessertExtrasList" class="extras-list"></div>
+                    </div>
+
+                    <!-- ADET SEÇİMİ -->
+                    <div style="margin-bottom: 16px;">
+                        <label
+                            style="display:block; font-size:0.85rem; font-weight:700; color:var(--text-secondary); margin-bottom:6px;">Adet</label>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <button type="button" onclick="window.changeModalQuantity(-1)"
+                                style="width:48px; height:48px; font-size:1.6rem; font-weight:800; border-radius:var(--radius-md); background:rgba(255,255,255,0.12); border:1px solid var(--border-color); color:#fff; cursor:pointer; user-select:none; touch-action:manipulation;">-</button>
+                            <input type="number" id="modalQuantity" value="1" min="1" max="20" readonly
+                                style="flex:1; text-align:center; font-size: 1.3rem; font-weight: 800; background:rgba(0,0,0,0.2); border:1px solid var(--border-color); color:#fff; cursor:default; user-select:none;"
+                                onchange="updateModalCalculatedPrice()">
+                            <button type="button" onclick="window.changeModalQuantity(1)"
+                                style="width:48px; height:48px; font-size:1.6rem; font-weight:800; border-radius:var(--radius-md); background:rgba(255,255,255,0.12); border:1px solid var(--border-color); color:#fff; cursor:pointer; user-select:none; touch-action:manipulation;">+</button>
+                        </div>
+                    </div>
+
+                    <!-- DİNAMİK ÇİPLER VE ÖZEL NOT -->
+                    <div class="note-input-group">
+                        <label>✏️ Varsa ekstra özel notunuz...</label>
+                        <input type="text" id="modalProductNote" placeholder="Sipariş notunuzu buraya yazabilirsiniz..."
+                            style="width: 100%;">
+                    </div>
+                </div>
+            </div> <!-- End of modalScrollArea -->
+
+            <!-- STICKY BOTTOM FOOTER -->
+            <div
+                style="padding: 16px 24px; background: rgba(15, 23, 42, 0.98); border-top: 1px solid rgba(255, 255, 255, 0.1); flex-shrink: 0; display: flex; gap: 16px; align-items: center;">
+                <div style="font-size: 1.6rem; font-weight: 900; color: #fbbf24; white-space: nowrap;"
+                    id="modalProductPrice">0.00 ₺</div>
+                <button class="btn-add"
+                    style="flex: 1; justify-content: center; padding: 14px; font-size: 1.1rem; box-shadow: 0 4px 15px rgba(245,158,11,0.3);"
+                    onclick="confirmAddToCart()">
+                    Sepete Ekle
+                </button>
+            </div>
         </div>
     </div>
 
@@ -245,7 +267,18 @@
         </div>
     </div>
 
-    <script src="/static/js/app.js?v=13"></script>
+    <!-- 4. GÜVENLİK (TOKEN) HATA MODALİ (KAPANMAZ) -->
+    <div id="securityErrorModal" class="modal-overlay">
+        <div class="modal-content" style="text-align: center; border-top: 4px solid var(--danger);">
+            <div style="font-size: 3rem; margin-bottom: 12px;">🚫</div>
+            <h2 style="font-size: 1.5rem; margin-bottom: 8px; color: var(--danger);">Erişim Reddedildi!</h2>
+            <p id="securityErrorMessage" style="color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 10px;">
+                Lütfen masanızdaki güncel QR kodu okutunuz.</p>
+        </div>
+    </div>
+
+    <script src="/static/js/rulet.js?v=1"></script>
+    <script src="/static/js/app.js?v=64"></script>
 </body>
 
 </html>

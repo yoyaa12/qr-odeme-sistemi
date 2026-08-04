@@ -1,5 +1,6 @@
 let kasaTables = [];
 let kasaOrders = [];
+let kasaDynamicQRs = {};
 let activeMasaId = null;
 let activeFilter = 'all';
 let currentTableItems = [];
@@ -9,8 +10,35 @@ let discountType = 'percent'; // 'percent' or 'amount'
 let discountValue = 0;
 let partialPaymentsMap = {};
 
+// GİRİŞ KISITLAMASI (Küsürat limitleyici)
+window.limitDecimals = function(el) {
+    if (el.value.includes('.')) {
+        let parts = el.value.split('.');
+        if (parts[1].length > 2) {
+            el.value = parts[0] + '.' + parts[1].substring(0, 2);
+        }
+    }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     loadKasaData();
+
+    // 1 SANİYELİK CANLI DINAMIK QR SAYAÇ ZAMANLAYICISI
+    setInterval(() => {
+        let needRefresh = false;
+        Object.keys(kasaDynamicQRs).forEach(mId => {
+            if (kasaDynamicQRs[mId] && kasaDynamicQRs[mId].remaining_seconds > 0) {
+                kasaDynamicQRs[mId].remaining_seconds -= 1;
+            } else {
+                needRefresh = true;
+            }
+        });
+        if (needRefresh) {
+            loadKasaData();
+        } else {
+            updateDynamicQRBadgeTimers();
+        }
+    }, 1000);
 
     // SOCKET.IO CANLI DİNLEME
     const socket = io({
@@ -27,9 +55,22 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('masa_durumu_degisti', () => loadKasaData());
     socket.on('garson_onay_talebi', () => loadKasaData());
 
-    // F1 - F8 KLAVYE KISAYOLLARI DİNLEYİCİSİ
+    // F1 - F8 VE ESC KLAVYE KISAYOLLARI DİNLEYİCİSİ (ESC: KAPAT / GERİ DÖN, F5: YENİLE)
     document.addEventListener('keydown', (e) => {
-        if (['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'].includes(e.key)) {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            const activeModal = document.querySelector('.modal-overlay.active');
+            if (activeModal) {
+                activeModal.classList.remove('active');
+                return;
+            }
+            const masaDetay = document.getElementById('viewMasaDetay');
+            if (masaDetay && masaDetay.style.display !== 'none') {
+                closeMasaDetayView();
+                return;
+            }
+        }
+        if (['F1', 'F2', 'F3', 'F4', 'F6', 'F7', 'F8'].includes(e.key)) {
             e.preventDefault();
             handleShortcut(e.key);
         }
@@ -44,14 +85,28 @@ function updateKasaSocketBadge(isConnected) {
     }
 }
 
+function updateDynamicQRBadgeTimers() {
+    Object.keys(kasaDynamicQRs).forEach(mId => {
+        const qr = kasaDynamicQRs[mId];
+        const timerEl = document.getElementById(`qrTimer_${mId}`);
+        if (timerEl && qr) {
+            timerEl.innerText = `${qr.remaining_seconds}s`;
+        }
+    });
+}
+
 async function loadKasaData() {
     try {
-        const [tablesRes, ordersRes] = await Promise.all([
+        const [tablesRes, ordersRes, qrsRes] = await Promise.all([
             fetch('/api/masalar'),
-            fetch('/api/siparisler')
+            fetch('/api/siparisler'),
+            fetch('/api/masalar/all-dynamic-qrs')
         ]);
         kasaTables = await tablesRes.json();
         kasaOrders = await ordersRes.json();
+        if (qrsRes.ok) {
+            kasaDynamicQRs = await qrsRes.json();
+        }
 
         updateFilterCounts();
         renderKasaGrid();
@@ -151,11 +206,15 @@ function renderKasaGrid() {
         }
 
         const isSelected = activeMasaId == t.id;
+        const isSourceSelected = moveSourceTableId == t.id;
         const formattedMasaNo = getFormattedMasaNo(t.masa_no);
         const isSalon = t.masa_no.startsWith('S-');
 
         const cardHtml = `
-            <div class="vega-table-card ${statusClass} ${isSelected ? 'selected-table' : ''}" onclick="selectKasaMasa(${t.id})">
+            <div class="vega-table-card ${statusClass} ${isSelected ? 'selected-table' : ''} ${isSourceSelected ? 'source-selected' : ''}" onclick="selectKasaMasa(${t.id})" style="position:relative;">
+                <button type="button" class="card-qr-badge-btn" onclick="event.stopPropagation(); showDynamicQRModal(${t.id})" title="Masaya Ait Canlı QR Kodunu Aç" style="position:absolute; top:50%; transform:translateY(-50%); right:10px; width:60px; height:60px; background:rgba(99, 102, 241, 0.25); color:#a5b4fc; border:1px solid rgba(99, 102, 241, 0.5); border-radius:10px; font-size:1rem; font-weight:800; cursor:pointer; z-index:10; display:flex; align-items:center; justify-content:center; padding:0; box-shadow:0 4px 10px rgba(0,0,0,0.3);">
+                    QR
+                </button>
                 <div class="card-table-no">🪑 ${formattedMasaNo}</div>
                 ${isDolu || isHesap ? `
                     <div class="card-table-bill">${totalBill.toFixed(2)} ₺</div>
@@ -177,8 +236,12 @@ function renderKasaGrid() {
     bahceContainer.innerHTML = bahceHtml || `<div style="color:var(--text-muted); padding:20px; grid-column:1/-1; text-align:center;">Masa bulunamadı.</div>`;
 }
 
-window.selectKasaMasa = function (masaId) {
-    activeMasaId = masaId;
+window.selectKasaMasa = function (tableId) {
+    if (isTableMoveMode) {
+        handleTableClickInMoveMode(tableId);
+        return;
+    }
+    activeMasaId = tableId;
     const viewGrid = document.getElementById('viewMasaHaritasi');
     const viewDetay = document.getElementById('viewMasaDetay');
 
@@ -238,6 +301,13 @@ function renderActiveTicketWorkstation() {
         badgeEl.innerText = isHesap ? '🟡 HESAP İSTENDİ' : (isDolu ? '🔴 HESAP AÇIK' : '🟢 BOŞ');
         badgeEl.className = isHesap ? 'vega-badge-status status-hesap' : (isDolu ? 'vega-badge-status status-dolu' : 'vega-badge-status status-bos');
     }
+    if (metaEl) {
+        metaEl.innerHTML = `
+            <button type="button" class="btn-add" style="font-size:0.78rem; padding:4px 10px; background:linear-gradient(135deg, #f59e0b, #d97706); font-weight:bold;" onclick="showDynamicQRModal(${table.id})">
+                📱 Canlı Dinamik QR (Simülatör)
+            </button>
+        `;
+    }
 
     const isFirstLoad = (currentTableItems.length === 0);
     const selectedStateMap = {};
@@ -257,7 +327,7 @@ function renderActiveTicketWorkstation() {
             const lineTotal = parseFloat(d.ara_toplam) || ((parseFloat(d.adet) || 0) * (parseFloat(d.birim_fiyat) || 0));
             const uniqueId = `${o.id}_${idx}`;
             const isIkramNow = (uniqueId in ikramStateMap) ? ikramStateMap[uniqueId] : (d.is_ikram || false);
-            
+
             if (!isIkramNow) {
                 subtotal += lineTotal;
             }
@@ -313,7 +383,7 @@ function getActiveMasaSubtotal() {
     const table = kasaTables.find(t => t.id == activeMasaId);
     if (!table) return 0;
     const masaOrders = kasaOrders.filter(o => o.masa_id == table.id && o.odeme_durumu !== 'odendi' && o.siparis_durumu !== 'iptal');
-    
+
     let itemsTotalSum = 0;
     currentTableItems.forEach(item => {
         if (!item.isIkram) {
@@ -331,7 +401,7 @@ function getActiveMasaSubtotal() {
 
 function updateFinancialSummary(subtotal) {
     const subtotalVal = subtotal > 0 ? subtotal : getActiveMasaSubtotal();
-    
+
     let calculatedDiscount = 0;
     if (discountValue > 0) {
         if (discountType === 'percent') {
@@ -363,21 +433,30 @@ function updateFinancialSummary(subtotal) {
     if (elToplam) elToplam.innerText = `${toplamVal.toFixed(2)} ₺`;
     if (rowDiscountDetail) {
         if (discountValue > 0) {
-            rowDiscountDetail.style.display = 'flex';
+            rowDiscountDetail.style.visibility = 'visible';
             if (elDiscount) elDiscount.innerText = `${calculatedDiscount.toFixed(2)} ₺ (${discountType === 'percent' ? '%' + discountValue : 'Sabit'})`;
         } else {
-            rowDiscountDetail.style.display = 'none';
+            rowDiscountDetail.style.visibility = 'hidden';
         }
     }
     if (elOdenen) elOdenen.innerText = `${paidBefore.toFixed(2)} ₺`;
     if (elKalan) elKalan.innerText = `${kalanVal.toFixed(2)} ₺`;
-    
+
+    const btnClearTable = document.getElementById('btnManualClearTable');
+    if (btnClearTable) {
+        if (!activeMasaId) {
+            btnClearTable.style.display = 'none';
+        } else {
+            btnClearTable.style.display = 'flex';
+        }
+    }
+
     if (rowSecimDetail) {
         if (secimVal > 0) {
-            rowSecimDetail.style.display = 'flex';
+            rowSecimDetail.style.visibility = 'visible';
             if (elSecim) elSecim.innerText = `${secimVal.toFixed(2)} ₺`;
         } else {
-            rowSecimDetail.style.display = 'none';
+            rowSecimDetail.style.visibility = 'hidden';
         }
     }
 
@@ -401,7 +480,7 @@ window.updateDualPaymentSum = function () {
     if (discountValue > 0) {
         calculatedDiscount = discountType === 'percent' ? (subtotal * discountValue) / 100 : Math.min(subtotal, discountValue);
     }
-    const toplam = Math.max(0, subtotal - calculatedDiscount);
+    const remainingTotal = Math.max(0, subtotal - calculatedDiscount - paidBefore);
 
     const nakit = parseFloat(document.getElementById('tutarNakitInput')?.value) || 0;
     const kart = parseFloat(document.getElementById('tutarKartInput')?.value) || 0;
@@ -410,17 +489,61 @@ window.updateDualPaymentSum = function () {
     if (document.getElementById('dualSumLabel')) {
         let displaySum = currentInputPayment;
         if (displaySum === 0) {
-            let secimVal = 0;
-            currentTableItems.forEach(i => {
-                if (i.selected) {
-                    secimVal += (i.isIkram ? 0 : parseFloat(i.ara_toplam) || 0);
-                }
-            });
-            displaySum = secimVal > 0 ? secimVal : Math.max(0, toplam - paidBefore);
+            if (remainingTotal <= 0.05) {
+                displaySum = 0;
+            } else {
+                let secimVal = 0;
+                currentTableItems.forEach(i => {
+                    if (i.selected) {
+                        secimVal += (i.isIkram ? 0 : parseFloat(i.ara_toplam) || 0);
+                    }
+                });
+                displaySum = secimVal > 0 ? secimVal : remainingTotal;
+            }
         }
         document.getElementById('dualSumLabel').innerText = `${displaySum.toFixed(2)} ₺`;
     }
+
+    // Buton vurgularını güncelle
+    let activeType = 'none';
+    if (nakit > 0 && kart === 0) activeType = 'nakit';
+    else if (kart > 0 && nakit === 0) activeType = 'pos';
+    updateQuickButtonHighlights(activeType);
 };
+
+let isHalfModeSelected = false;
+
+function updateQuickButtonHighlights(activeType) {
+    const btnNakit = document.getElementById('btnChipNakit');
+    const btnPos = document.getElementById('btnChipPos');
+    const btnHalf = document.getElementById('btnChipHalf');
+
+    if (btnNakit) {
+        const isNakitActive = (activeType === 'nakit');
+        btnNakit.style.background = isNakitActive ? '#10b981' : 'rgba(255, 255, 255, 0.08)';
+        btnNakit.style.color = isNakitActive ? '#ffffff' : '#cbd5e1';
+        btnNakit.style.borderColor = isNakitActive ? '#34d399' : 'rgba(255, 255, 255, 0.15)';
+        btnNakit.style.boxShadow = isNakitActive ? '0 0 14px rgba(16, 185, 129, 0.6)' : 'none';
+        btnNakit.style.transform = isNakitActive ? 'scale(1.04)' : 'scale(1)';
+    }
+
+    if (btnPos) {
+        const isPosActive = (activeType === 'pos');
+        btnPos.style.background = isPosActive ? '#06b6d4' : 'rgba(255, 255, 255, 0.08)';
+        btnPos.style.color = isPosActive ? '#ffffff' : '#cbd5e1';
+        btnPos.style.borderColor = isPosActive ? '#38bdf8' : 'rgba(255, 255, 255, 0.15)';
+        btnPos.style.boxShadow = isPosActive ? '0 0 14px rgba(6, 182, 212, 0.6)' : 'none';
+        btnPos.style.transform = isPosActive ? 'scale(1.04)' : 'scale(1)';
+    }
+
+    if (btnHalf) {
+        const isHalfActive = isHalfModeSelected;
+        btnHalf.style.background = isHalfActive ? '#6366f1' : 'rgba(99, 102, 241, 0.15)';
+        btnHalf.style.color = isHalfActive ? '#ffffff' : '#818cf8';
+        btnHalf.style.borderColor = isHalfActive ? '#818cf8' : 'rgba(99, 102, 241, 0.4)';
+        btnHalf.style.boxShadow = isHalfActive ? '0 0 14px rgba(99, 102, 241, 0.6)' : 'none';
+    }
+}
 
 window.fillDualAmount = function (type) {
     if (!activeMasaId) return;
@@ -434,6 +557,11 @@ window.fillDualAmount = function (type) {
     }
     const remainingTotal = Math.max(0, subtotal - calculatedDiscount - paidBefore);
 
+    if (remainingTotal <= 0.05 && type !== 'clear') {
+        showKasaToast("⚠️ Masanın borcu zaten ödenmiştir.");
+        return;
+    }
+
     let secimVal = 0;
     currentTableItems.forEach(i => {
         if (i.selected) {
@@ -441,24 +569,40 @@ window.fillDualAmount = function (type) {
         }
     });
 
-    const targetAmount = secimVal > 0 ? secimVal : remainingTotal;
+    const fullTarget = (secimVal > 0 && remainingTotal > 0.05) ? secimVal : remainingTotal;
+    const halfTarget = fullTarget / 2;
 
     const nakitEl = document.getElementById('tutarNakitInput');
     const kartEl = document.getElementById('tutarKartInput');
 
-    if (type === 'nakit_all') {
-        if (nakitEl) nakitEl.value = targetAmount > 0 ? targetAmount.toFixed(2) : '';
+    if (type === 'half') {
+        isHalfModeSelected = true;
+        const currentKart = parseFloat(kartEl?.value) || 0;
+        if (currentKart > 0) {
+            if (kartEl) kartEl.value = halfTarget > 0 ? halfTarget.toFixed(2) : '';
+            if (nakitEl) nakitEl.value = '';
+            updateQuickButtonHighlights('pos');
+        } else {
+            if (nakitEl) nakitEl.value = halfTarget > 0 ? halfTarget.toFixed(2) : '';
+            if (kartEl) kartEl.value = '';
+            updateQuickButtonHighlights('nakit');
+        }
+        showKasaToast(`⚖️ Yarısı (${halfTarget.toFixed(2)} ₺) hesaplandı.`);
+    } else if (type === 'nakit' || type === 'nakit_all') {
+        const amount = isHalfModeSelected ? halfTarget : fullTarget;
+        if (nakitEl) nakitEl.value = amount > 0 ? amount.toFixed(2) : '';
         if (kartEl) kartEl.value = '';
-    } else if (type === 'pos_all') {
-        if (kartEl) kartEl.value = targetAmount > 0 ? targetAmount.toFixed(2) : '';
+        updateQuickButtonHighlights('nakit');
+    } else if (type === 'pos' || type === 'pos_all') {
+        const amount = isHalfModeSelected ? halfTarget : fullTarget;
+        if (kartEl) kartEl.value = amount > 0 ? amount.toFixed(2) : '';
         if (nakitEl) nakitEl.value = '';
-    } else if (type === 'split_half') {
-        const half = targetAmount / 2;
-        if (nakitEl) nakitEl.value = half > 0 ? half.toFixed(2) : '';
-        if (kartEl) kartEl.value = half > 0 ? half.toFixed(2) : '';
+        updateQuickButtonHighlights('pos');
     } else if (type === 'clear') {
+        isHalfModeSelected = false;
         if (nakitEl) nakitEl.value = '';
         if (kartEl) kartEl.value = '';
+        updateQuickButtonHighlights('none');
     }
 
     updateDualPaymentSum();
@@ -545,9 +689,11 @@ window.processQuickPayment = async function (paymentMethod) {
     renderActiveTicketWorkstation();
 };
 
-window.processMainPaymentSubmit = async function () {
+let pendingPaymentData = null;
+
+window.processMainPaymentSubmit = function () {
     if (!activeMasaId) {
-        alert("Lütfen tahsilat yapmak için önce bir masa seçiniz.");
+        showKasaToast("⚠️ Lütfen tahsilat yapmak için önce bir masa seçiniz.");
         return;
     }
 
@@ -563,6 +709,11 @@ window.processMainPaymentSubmit = async function () {
     }
     const remaining = Math.max(0, subtotal - calculatedDiscount - paidBefore);
 
+    if (remaining <= 0.05) {
+        showKasaToast("⚠️ Bu masanın hesabı zaten tamamen ödenmiştir (Kalan: 0.00 ₺). Masayı kapatabilir veya F8 ile fiş yazdırabilirsiniz.");
+        return;
+    }
+
     let nakitPay = parseFloat(document.getElementById('tutarNakitInput')?.value) || 0;
     let kartPay = parseFloat(document.getElementById('tutarKartInput')?.value) || 0;
 
@@ -576,40 +727,66 @@ window.processMainPaymentSubmit = async function () {
         const targetAmount = secimVal > 0 ? secimVal : remaining;
 
         if (targetAmount <= 0) {
-            alert("Adisyonda ödenecek tutar bulunmuyor.");
+            showKasaToast("⚠️ Adisyonda ödenecek tutar bulunmuyor.");
             return;
         }
 
-        const isNakit = confirm(`Ödemeyi NAKİT olarak almak için 'Tamam', KREDİ KARTI / POS olarak almak için 'İptal' butonuna basınız.\nTutar: ${targetAmount.toFixed(2)} ₺`);
-        if (isNakit) {
-            nakitPay = targetAmount;
-        } else {
-            kartPay = targetAmount;
+        nakitPay = targetAmount;
+        if (document.getElementById('tutarNakitInput')) {
+            document.getElementById('tutarNakitInput').value = targetAmount.toFixed(2);
         }
     }
 
     const totalInputPayment = nakitPay + kartPay;
     if (totalInputPayment <= 0) {
-        alert("Geçersiz ödeme tutarı.");
+        showKasaToast("⚠️ Geçersiz ödeme tutarı.");
         return;
     }
 
-    let confirmMsg = `${getFormattedMasaNo(table.masa_no)} için `;
-    if (nakitPay > 0 && kartPay > 0) {
-        confirmMsg += `${nakitPay.toFixed(2)} ₺ Nakit ve ${kartPay.toFixed(2)} ₺ Kredi Kartı ödemesi tahsil edilecek. Onaylıyor musunuz?`;
-    } else if (nakitPay > 0) {
-        confirmMsg += `${nakitPay.toFixed(2)} ₺ Nakit ödemesi tahsil edilecek. Onaylıyor musunuz?`;
-    } else {
-        confirmMsg += `${kartPay.toFixed(2)} ₺ Kredi Kartı ödemesi tahsil edilecek. Onaylıyor musunuz?`;
+    pendingPaymentData = {
+        table,
+        nakitPay,
+        kartPay,
+        totalInputPayment,
+        subtotal,
+        calculatedDiscount
+    };
+
+    const confirmMasaInfo = document.getElementById('posConfirmMasaInfo');
+    const confirmDetailsBox = document.getElementById('posConfirmDetailsBox');
+
+    if (confirmMasaInfo) {
+        confirmMasaInfo.innerText = `${getFormattedMasaNo(table.masa_no)} - ÖDEME ALINIYOR`;
     }
 
-    if (!confirm(confirmMsg)) return;
+    if (confirmDetailsBox) {
+        let html = ``;
+        if (nakitPay > 0) {
+            html += `<div style="display:flex; justify-content:space-between;"><span>💵 Nakit Ödeme:</span><strong style="color:#34d399; font-size:1.1rem;">${nakitPay.toFixed(2)} ₺</strong></div>`;
+        }
+        if (kartPay > 0) {
+            html += `<div style="display:flex; justify-content:space-between;"><span>💳 Kredi Kartı / POS:</span><strong style="color:#38bdf8; font-size:1.1rem;">${kartPay.toFixed(2)} ₺</strong></div>`;
+        }
+        html += `<div style="display:flex; justify-content:space-between; border-top:1px dashed rgba(255,255,255,0.2); padding-top:8px; margin-top:4px; font-weight:900; font-size:1.15rem; color:#fbbf24;"><span>TOPLAM TAHSİLAT:</span><strong>${totalInputPayment.toFixed(2)} ₺</strong></div>`;
+        confirmDetailsBox.innerHTML = html;
+    }
+
+    const modal = document.getElementById('posPaymentConfirmModal');
+    if (modal) modal.classList.add('active');
+};
+
+window.executeConfirmedMainPayment = async function (shouldPrintAndClose = false) {
+    if (!pendingPaymentData || !activeMasaId) return;
+
+    const { table, nakitPay, kartPay, totalInputPayment, subtotal, calculatedDiscount } = pendingPaymentData;
+
+    closeModal('posPaymentConfirmModal');
 
     if (!partialPaymentsMap[activeMasaId]) partialPaymentsMap[activeMasaId] = 0;
     partialPaymentsMap[activeMasaId] += totalInputPayment;
 
-    document.getElementById('tutarNakitInput').value = '';
-    document.getElementById('tutarKartInput').value = '';
+    if (document.getElementById('tutarNakitInput')) document.getElementById('tutarNakitInput').value = '';
+    if (document.getElementById('tutarKartInput')) document.getElementById('tutarKartInput').value = '';
     currentTableItems.forEach(i => i.selected = false);
 
     const paymentLabel = nakitPay > 0 && kartPay > 0 ? "Nakit + POS" : (nakitPay > 0 ? "Nakit" : "Kredi Kartı");
@@ -617,23 +794,51 @@ window.processMainPaymentSubmit = async function () {
 
     const updatedRemaining = Math.max(0, subtotal - calculatedDiscount - partialPaymentsMap[activeMasaId]);
 
-    if (updatedRemaining <= 0.05) {
+    if (shouldPrintAndClose) {
+        printReceiptPreview();
         try {
             await fetch(`/api/masalar/${activeMasaId}/clear`, { method: 'POST' });
             delete partialPaymentsMap[activeMasaId];
             discountValue = 0;
             const masaNo = getFormattedMasaNo(table.masa_no);
-            showKasaToast(`✅ ${masaNo} hesabı tamamen kapatıldı!`);
+            showKasaToast(`✅ ${masaNo} ödemesi alındı, fiş yazdırıldı ve masa kapatıldı!`);
+            pendingPaymentData = null;
             closeMasaDetayView();
             await loadKasaData();
             return;
         } catch (e) {
-            console.error("Masa kapatılamadı:", e);
+            console.error("Masa kapatma hatası:", e);
         }
+    } else {
+        if (updatedRemaining <= 0.05) {
+            showKasaToast(`💵 ${totalInputPayment.toFixed(2)} ₺ ödeme alındı! Borç sıfırlandı. (Masada kalındı - Fiş için F8)`);
+        } else {
+            showKasaToast(`💵 ${totalInputPayment.toFixed(2)} ₺ ödeme alındı. Kalan borç: ${updatedRemaining.toFixed(2)} ₺`);
+        }
+        pendingPaymentData = null;
+        renderActiveTicketWorkstation();
     }
+};
 
-    showKasaToast(`💵 ${totalInputPayment.toFixed(2)} ₺ ödeme alındı. Kalan: ${updatedRemaining.toFixed(2)} ₺`);
-    renderActiveTicketWorkstation();
+window.clearActiveTableManually = async function () {
+    if (!activeMasaId) return;
+    const table = kasaTables.find(t => t.id == activeMasaId);
+    
+    const masaNo = table ? getFormattedMasaNo(table.masa_no) : '';
+    if (!confirm(`DİKKAT! ${masaNo} masasını zorla kapatmak ve temizlemek istediğinize emin misiniz? (Ödenmemiş siparişler varsa hepsi iptal edilecektir!)`)) {
+        return;
+    }
+    
+    try {
+        await fetch(`/api/masalar/${activeMasaId}/clear`, { method: 'POST' });
+        delete partialPaymentsMap[activeMasaId];
+        discountValue = 0;
+        showKasaToast(`🧹 ${masaNo} masası zorla kapatıldı ve temizlendi!`);
+        closeMasaDetayView();
+        await loadKasaData();
+    } catch (e) {
+        console.error("Masa temizleme hatası:", e);
+    }
 };
 
 window.handleShortcut = function (key) {
@@ -657,7 +862,7 @@ window.handleShortcut = function (key) {
             applyIkramToSelectedItems();
             break;
         case 'F7':
-            openMoveTableModal();
+            toggleTableMoveMode();
             break;
         case 'F8':
             printReceiptPreview();
@@ -670,7 +875,7 @@ window.openDiscountModal = function () {
         alert("Lütfen iskonto uygulamak için bir masa seçiniz.");
         return;
     }
-    document.getElementById('discountValueInput').value = discountValue || '';
+    document.getElementById('discountValueInput').value = discountValue ? parseFloat(discountValue).toFixed(2) : '';
     document.getElementById('discountModal').classList.add('active');
 };
 
@@ -685,12 +890,18 @@ window.setDiscountType = function (type) {
         if (btnP) { btnP.style.background = 'var(--primary)'; btnP.style.color = '#000'; }
         if (btnA) { btnA.style.background = 'rgba(255,255,255,0.1)'; btnA.style.color = '#fff'; }
         if (label) label.innerText = 'İndirim Oranı (%)';
-        if (quickGroup) quickGroup.style.display = 'flex';
+        if (quickGroup) {
+            quickGroup.style.visibility = 'visible';
+            quickGroup.style.pointerEvents = 'auto';
+        }
     } else {
         if (btnA) { btnA.style.background = 'var(--primary)'; btnA.style.color = '#000'; }
         if (btnP) { btnP.style.background = 'rgba(255,255,255,0.1)'; btnP.style.color = '#fff'; }
         if (label) label.innerText = 'İndirim Tutarı (₺)';
-        if (quickGroup) quickGroup.style.display = 'none';
+        if (quickGroup) {
+            quickGroup.style.visibility = 'hidden';
+            quickGroup.style.pointerEvents = 'none';
+        }
     }
 };
 
@@ -702,7 +913,8 @@ window.applyQuickPercent = function (percent) {
 };
 
 window.confirmDiscount = function () {
-    const val = parseFloat(document.getElementById('discountValueInput').value) || 0;
+    let val = parseFloat(document.getElementById('discountValueInput').value) || 0;
+    val = parseFloat(val.toFixed(2)); // Sadece 2 basamak
     discountValue = val;
     closeModal('discountModal');
     renderActiveTicketWorkstation();
@@ -722,7 +934,7 @@ window.applyIkramToSelectedItems = function () {
         alert("Lütfen ikram etmek veya ikramı iptal etmek istediğiniz en az 1 ürünü tablodan seçiniz.");
         return;
     }
-    
+
     const isFirstAlreadyIkram = selected[0].isIkram;
     selected.forEach(item => {
         item.isIkram = !isFirstAlreadyIkram;
@@ -846,10 +1058,243 @@ window.closeModal = function (modalId) {
     document.getElementById(modalId).classList.remove('active');
 };
 
-function showKasaToast(msg) {
-    const toast = document.createElement('div');
-    toast.className = 'toast-notification-waiter';
-    toast.innerText = msg;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3500);
+// GÖRSEL MASA & ÜRÜN TAŞIMA MODU MANTIĞI
+let isTableMoveMode = false;
+let moveSourceTableId = null;
+let moveTargetTableId = null;
+let selectedTransferType = 'all';
+
+window.toggleTableMoveMode = function () {
+    if (isTableMoveMode) {
+        cancelTableMoveMode();
+    } else {
+        isTableMoveMode = true;
+        moveSourceTableId = null;
+        moveTargetTableId = null;
+        const banner = document.getElementById('moveModeBanner');
+        const text = document.getElementById('moveModeBannerText');
+        if (text) text.innerText = 'MASA TAŞIMA MODU: Lütfen taşınacak (Kaynak) masaya tıklayınız...';
+        if (banner) banner.style.display = 'flex';
+        renderKasaGrid();
+        showKasaToast('🔄 Masa taşıma modu aktif. Taşınacak masayı seçiniz.');
+    }
+};
+
+window.cancelTableMoveMode = function () {
+    isTableMoveMode = false;
+    moveSourceTableId = null;
+    moveTargetTableId = null;
+    const banner = document.getElementById('moveModeBanner');
+    if (banner) banner.style.display = 'none';
+    renderKasaGrid();
+};
+
+function handleTableClickInMoveMode(tableId) {
+    const table = kasaTables.find(t => t.id == tableId);
+    if (!table) return;
+
+    if (!moveSourceTableId) {
+        const masaOrders = kasaOrders.filter(o => o.masa_id == table.id && o.odeme_durumu !== 'odendi' && o.siparis_durumu !== 'iptal');
+        if (table.durum === 'bos' && masaOrders.length === 0) {
+            showKasaToast('⚠️ Bu masa boş, taşınacak adisyon bulunmuyor.');
+            return;
+        }
+        moveSourceTableId = tableId;
+        const text = document.getElementById('moveModeBannerText');
+        if (text) text.innerText = `🔄 ${getFormattedMasaNo(table.masa_no)} SEÇİLDİ ➔ Lütfen aktarılacağı YENİ MASAYA (Hedef Masa) tıklayınız.`;
+        renderKasaGrid();
+        showKasaToast(`🔄 Kaynak Masa: ${getFormattedMasaNo(table.masa_no)} seçildi. Şimdi hedef masayı seçiniz.`);
+    } else {
+        if (tableId == moveSourceTableId) {
+            showKasaToast('⚠️ Hedef masa kaynak masayla aynı olamaz.');
+            return;
+        }
+        moveTargetTableId = tableId;
+        openVisualTransferModal();
+    }
 }
+
+function openVisualTransferModal() {
+    const sourceTable = kasaTables.find(t => t.id == moveSourceTableId);
+    const targetTable = kasaTables.find(t => t.id == moveTargetTableId);
+    if (!sourceTable || !targetTable) return;
+
+    const routeTitle = document.getElementById('transferRouteTitle');
+    if (routeTitle) {
+        routeTitle.innerText = `${getFormattedMasaNo(sourceTable.masa_no)} ➔ ${getFormattedMasaNo(targetTable.masa_no)}`;
+    }
+
+    setTransferType('all');
+    document.getElementById('visualTransferModal').classList.add('active');
+}
+
+window.setTransferType = function (type) {
+    selectedTransferType = type;
+    const btnAll = document.getElementById('btnTransferTypeAll');
+    const btnItems = document.getElementById('btnTransferTypeItems');
+    const itemsContainer = document.getElementById('transferItemsContainer');
+
+    if (type === 'all') {
+        if (btnAll) { btnAll.style.background = '#6366f1'; btnAll.style.color = '#fff'; }
+        if (btnItems) { btnItems.style.background = 'rgba(255,255,255,0.1)'; btnItems.style.color = '#cbd5e1'; }
+        if (itemsContainer) {
+            itemsContainer.innerHTML = '<div style="font-size:0.9rem; color:#cbd5e1; text-align:center; padding-top:45px;">📦 Masadaki tüm adisyon kalemleri eksiksiz aktarılacaktır.</div>';
+        }
+    } else {
+        if (btnItems) { btnItems.style.background = '#6366f1'; btnItems.style.color = '#fff'; }
+        if (btnAll) { btnAll.style.background = 'rgba(255,255,255,0.1)'; btnAll.style.color = '#cbd5e1'; }
+        if (itemsContainer) {
+            renderTransferItemsList();
+        }
+    }
+};
+
+function renderTransferItemsList() {
+    const itemsContainer = document.getElementById('transferItemsContainer');
+    if (!itemsContainer || !moveSourceTableId) return;
+
+    const masaOrders = kasaOrders.filter(o => o.masa_id == moveSourceTableId && o.odeme_durumu !== 'odendi' && o.siparis_durumu !== 'iptal');
+    let items = [];
+    masaOrders.forEach(o => {
+        (o.detaylar || []).forEach(d => items.push({ ...d, order_id: o.id }));
+    });
+
+    if (items.length === 0) {
+        itemsContainer.innerHTML = '<div style="font-size:0.88rem; color:#94a3b8; text-align:center; padding-top:45px;">Aktarılacak ürün bulunamadı.</div>';
+        return;
+    }
+
+    let html = '';
+    items.forEach((item, idx) => {
+        html += `
+            <label style="display:flex; justify-content:space-between; align-items:center; padding:6px 4px; border-bottom:1px solid rgba(255,255,255,0.08); cursor:pointer;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <input type="checkbox" class="transfer-item-checkbox" value="${item.id || idx}" checked style="accent-color:#6366f1; width:16px; height:16px;">
+                    <span style="font-weight:700; font-size:0.9rem; color:#fff;">${item.adet}x ${item.urun_adi}</span>
+                </div>
+                <span style="font-weight:800; color:#fbbf24; font-size:0.9rem;">${(item.ara_toplam || (item.birim_fiyat * item.adet)).toFixed(2)} ₺</span>
+            </label>
+        `;
+    });
+    itemsContainer.innerHTML = html;
+}
+
+window.confirmVisualTableTransfer = async function () {
+    if (!moveSourceTableId || !moveTargetTableId) return;
+
+    const sourceTable = kasaTables.find(t => t.id == moveSourceTableId);
+    const targetTable = kasaTables.find(t => t.id == moveTargetTableId);
+
+    try {
+        const res = await fetch('/api/masalar/move', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ from_masa_id: moveSourceTableId, to_masa_id: moveTargetTableId })
+        });
+
+        closeModal('visualTransferModal');
+        cancelTableMoveMode();
+
+        if (res.ok) {
+            const sourceNo = sourceTable ? getFormattedMasaNo(sourceTable.masa_no) : '';
+            const targetNo = targetTable ? getFormattedMasaNo(targetTable.masa_no) : '';
+            showKasaToast(`🔄 ${sourceNo} hesabı başarıyla ${targetNo} hesabına aktarıldı!`);
+            await loadKasaData();
+        } else {
+            showKasaToast('⚠️ Masa taşıma işlemi başarısız oldu.');
+        }
+    } catch (e) {
+        closeModal('visualTransferModal');
+        cancelTableMoveMode();
+        showKasaToast('⚠️ Masa taşıma işlemi başarısız oldu.');
+    }
+};
+
+let activeQRInterval = null;
+
+window.showDynamicQRModal = async function (masaId) {
+    if (activeQRInterval) clearInterval(activeQRInterval);
+
+    let existingModal = document.getElementById("kasaQRModal");
+    if (existingModal) existingModal.remove();
+
+    const fetchAndUpdateModal = async () => {
+        try {
+            const res = await fetch(`/api/masalar/${masaId}/dynamic-qr`);
+            const data = await res.json();
+            const qrImg = document.getElementById("modalQRImage");
+            const tokenEl = document.getElementById("modalQRToken");
+            const timerEl = document.getElementById("qrRemainingTimer");
+
+            const qrTargetUrl = window.location.origin + data.qr_url;
+            const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrTargetUrl)}`;
+
+            if (qrImg) qrImg.src = qrApiUrl;
+            if (tokenEl) tokenEl.innerText = data.token;
+            if (timerEl) timerEl.innerText = data.remaining_seconds;
+            return data;
+        } catch (e) {
+            console.error("QR modal update error:", e);
+        }
+    };
+
+    try {
+        const res = await fetch(`/api/masalar/${masaId}/dynamic-qr`);
+        const data = await res.json();
+
+        const qrTargetUrl = window.location.origin + data.qr_url;
+        const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrTargetUrl)}`;
+
+        const modalHtml = `
+            <div id="kasaQRModal" class="modal-overlay active" style="z-index: 99999; display:flex; align-items:center; justify-content:center;">
+                <div class="modal-content" style="max-width: 380px; text-align: center; background:#181824; color:#fff; padding:28px; border-radius:20px; position:relative; box-shadow:0 20px 60px rgba(0,0,0,0.6); border:1px solid rgba(255,188,0,0.25);">
+                    <button style="position:absolute; top:12px; right:16px; background:none; border:none; color:#aaa; font-size:26px; cursor:pointer;" onclick="clearInterval(activeQRInterval); document.getElementById('kasaQRModal').remove()">&times;</button>
+                    
+                    <h3 style="color:#ffbc00; margin:0 0 6px 0; font-size:1.3rem;">📱 Canlı Dinamik QR (Masa #${data.masa_no || masaId})</h3>
+                    <p style="font-size:0.82rem; color:#aaa; margin:0 0 18px 0;">Telefon kamerası ile okutarak doğrudan masa oturumuna girebilirsiniz:</p>
+                    
+                    <div style="background:#ffffff; padding:18px; border-radius:16px; display:inline-block; margin-bottom:18px; box-shadow:0 8px 25px rgba(0,0,0,0.3);">
+                        <img id="modalQRImage" src="${qrApiUrl}" width="200" height="200" alt="Canlı QR Kodu" style="display:block; border-radius:8px;">
+                    </div>
+                    
+                    <div style="background:rgba(255,255,255,0.05); padding:10px; border-radius:12px; margin-bottom:12px;">
+                        <div style="font-size:0.75rem; color:#aaa; font-weight:bold;">🔑 CANLI MASA GÜVENLİK KODU</div>
+                        <div style="font-weight:900; font-size:1.4rem; color:#10b981; font-family:monospace; letter-spacing:3px;" id="modalQRToken">${data.token}</div>
+                    </div>
+
+                    <div style="font-size:0.85rem; color:#fbbf24; font-weight:bold;">
+                        ⏳ QR Yenilenme Süresi: <span id="qrRemainingTimer">${data.remaining_seconds}</span> saniye
+                    </div>
+                    
+                    <div style="margin-top:14px;">
+                        <a href="${data.qr_url}" target="_blank" style="color:#6366f1; font-size:0.8rem; text-decoration:underline;">🔗 Masa Menü Linkine Doğrudan Git</a>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML("beforeend", modalHtml);
+
+        activeQRInterval = setInterval(async () => {
+            const timerEl = document.getElementById("qrRemainingTimer");
+            if (!timerEl) {
+                clearInterval(activeQRInterval);
+                return;
+            }
+            let current = intVal(timerEl.innerText);
+            if (current <= 1) {
+                await fetchAndUpdateModal();
+            } else {
+                timerEl.innerText = current - 1;
+            }
+        }, 1000);
+
+    } catch (e) {
+        alert("Dinamik QR verisi çekilemedi.");
+    }
+};
+
+function intVal(val) {
+    const parsed = parseInt(val, 10);
+    return isNaN(parsed) ? 30 : parsed;
+}
+

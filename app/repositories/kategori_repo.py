@@ -2,7 +2,7 @@ from app.database import execute_query, execute_non_query
 
 class KategoriRepository:
     def get_all_active(self):
-        query = "SELECT id, kategori_adi, aktif_mi FROM Kategoriler WHERE aktif_mi = 1 ORDER BY id ASC"
+        query = "SELECT id, kategori_adi, gorsel_url, aktif_mi FROM Kategoriler WHERE aktif_mi = 1 ORDER BY id ASC"
         return execute_query(query) or []
 
     def create(self, kategori_adi: str):
