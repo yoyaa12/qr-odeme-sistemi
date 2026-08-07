@@ -96,3 +96,31 @@ async def on_durum_guncellendi(payload):
 async def on_masa_temizlendi(payload):
     await sio.emit("masa_temizlendi", payload)
 
+@event_bus.subscribe("masa_tasindi")
+async def on_masa_tasindi(payload):
+    if isinstance(payload, dict) and "from_masa_id" in payload and "to_masa_id" in payload:
+        try:
+            from_id = int(payload["from_masa_id"])
+            to_id = int(payload["to_masa_id"])
+            
+            if from_id in MASA_SESSIONS:
+                sids = MASA_SESSIONS[from_id]
+                if to_id not in MASA_SESSIONS:
+                    MASA_SESSIONS[to_id] = set()
+                MASA_SESSIONS[to_id].update(sids)
+                del MASA_SESSIONS[from_id]
+                
+                for sid in sids:
+                    SID_TO_MASA[sid] = to_id
+                    
+            if from_id in BROWSING_TABLES:
+                data = BROWSING_TABLES.pop(from_id)
+                data["masa_id"] = to_id
+                data["masa_no"] = payload.get("to_masa_no", f"Masa {to_id}")
+                BROWSING_TABLES[to_id] = data
+        except Exception as e:
+            print(f"[Socket.io] Error updating session on table move: {e}")
+
+    await sio.emit("masa_tasindi", payload)
+
+

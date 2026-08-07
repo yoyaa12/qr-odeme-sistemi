@@ -25,6 +25,8 @@ def sanitize_for_json(data):
         return float(data)
     return data
 
+TABLE_MOVES_MAP = {}
+
 class SiparisService:
     def __init__(
         self, 
@@ -78,6 +80,7 @@ class SiparisService:
             await event_bus.publish("yeni_siparis", order_dict)
 
         await event_bus.publish("masa_durumu_degisti", {"masa_id": data.masa_id, "durum": "dolu"})
+        await event_bus.publish("durum_guncellendi", order_dict)
         
         if data.odeme_yontemi == "garson_kasada":
             await event_bus.publish("garson_onay_talebi", {
@@ -103,9 +106,21 @@ class SiparisService:
                 raise HTTPException(status_code=403, detail="Erişiminiz engellendi. Cihazınız yasaklı.")
 
         with db_transaction():
+            if data.masa_id in TABLE_MOVES_MAP:
+                data.masa_id = TABLE_MOVES_MAP[data.masa_id]
+
             masa = self.masa_repo.get_by_id(data.masa_id)
             if not masa:
                 raise HTTPException(status_code=404, detail="Geçersiz masa ID!")
+
+            if masa.get('durum') == 'bos':
+                if not data.current_totp_token:
+                    raise HTTPException(status_code=403, detail="Masa şu an BOŞ. İlk siparişi vermek için lütfen masadaki ekranın altında yazan 6 haneli güvenlik kodunu okutun.")
+                
+                from app.core.totp_service import verify_dynamic_token
+                totp_secret = masa.get("totp_secret")
+                if not totp_secret or not verify_dynamic_token(data.masa_id, totp_secret, data.current_totp_token):
+                    raise HTTPException(status_code=403, detail="Geçersiz veya süresi dolmuş kod! Lütfen masadaki ekranda yazan güncel 6 haneli güvenlik kodunu girin.")
 
             siparis_kodu = f"SIP-{uuid.uuid4().hex[:6].upper()}"
             odeme_durumu, siparis_durumu = self._determine_initial_status(data.odeme_yontemi)
@@ -155,11 +170,31 @@ class SiparisService:
         return [self._map_to_siparis_response(s) for s in siparisler]
 
     def get_masa_aktif_siparis(self, masa_id: int):
-        siparis = self.siparis_repo.get_active_by_masa_id(masa_id)
-        if siparis:
-            s_dto = self._map_to_siparis_response(siparis)
-            return {"has_active": True, "siparis": s_dto}
-        return {"has_active": False, "siparis": None}
+        target_masa_id = masa_id
+        is_redirected = False
+
+        if masa_id in TABLE_MOVES_MAP:
+            target_masa_id = TABLE_MOVES_MAP[masa_id]
+            is_redirected = True
+
+        siparisler = self.siparis_repo.get_all_active_by_masa_id(target_masa_id)
+        if siparisler:
+            s_dtos = [self._map_to_siparis_response(s) for s in siparisler]
+            genel_toplam = sum(s.toplam_tutar for s in s_dtos if s.toplam_tutar)
+            res = {
+                "has_active": True,
+                "siparisler": [s.model_dump() for s in s_dtos],
+                "siparis": s_dtos[-1].model_dump(),
+                "genel_toplam": genel_toplam
+            }
+        else:
+            res = {"has_active": False, "siparisler": [], "siparis": None, "genel_toplam": 0.0}
+
+        if is_redirected:
+            t_table = self.masa_repo.get_by_id(target_masa_id)
+            res["redirect_masa_id"] = target_masa_id
+            res["redirect_masa_no"] = t_table.get("masa_no", f"Masa {target_masa_id}") if t_table else f"Masa {target_masa_id}"
+        return res
 
     async def update_siparis_durumu(self, siparis_id: int, data: DurumGuncelleModel) -> SiparisDurumResponse:
         yeni_durum = data.yeni_durum.lower()
@@ -171,9 +206,9 @@ class SiparisService:
             if not s_info:
                 raise HTTPException(status_code=404, detail="Sipariş bulunamadı!")
 
-            if yeni_durum == "nakit_tahsil_edildi":
-                self.siparis_repo.update_odeme_and_durum(siparis_id, "odendi", "odendi_mutfakta", garson_adi)
-                yeni_durum = "odendi_mutfakta"
+            if yeni_durum in ["nakit_tahsil_edildi", "odendi_kapatildi"]:
+                self.siparis_repo.update_odeme_and_durum(siparis_id, "odendi", "teslim_edildi", garson_adi)
+                yeni_durum = "teslim_edildi"
             else:
                 self.siparis_repo.update_durum(siparis_id, yeni_durum, garson_adi if yeni_durum in ['garson_onayladi_mutfakta', 'teslim_edildi'] else None)
 
@@ -221,6 +256,10 @@ class SiparisService:
             self.masa_repo.update_durum(masa_id, 'bos')
             self.siparis_repo.clear_active_orders_for_masa(masa_id)
             clear_browsing_table(masa_id)
+            TABLE_MOVES_MAP.pop(masa_id, None)
+            for k, v in list(TABLE_MOVES_MAP.items()):
+                if v == masa_id:
+                    TABLE_MOVES_MAP.pop(k, None)
         
         event_payload = {"masa_id": masa_id, "durum": "bos"}
         await event_bus.publish("masa_durumu_degisti", event_payload)
@@ -257,13 +296,23 @@ class SiparisService:
     async def move_masa(self, from_masa_id: int, to_masa_id: int):
         with db_transaction():
             self.siparis_repo.move_orders_between_masalar(from_masa_id, to_masa_id)
-            self.masa_repo.update_durum(to_masa_id, 'dolu')
+            from_masa = self.masa_repo.get_by_id(from_masa_id)
+            from_masa_no = from_masa.get("masa_no", f"Masa {from_masa_id}") if from_masa else f"Masa {from_masa_id}"
+            to_masa = self.masa_repo.get_by_id(to_masa_id)
+            to_masa_no = to_masa.get("masa_no", f"Masa {to_masa_id}") if to_masa else f"Masa {to_masa_id}"
             
-            unpaid_cnt = self.siparis_repo.get_unpaid_count_for_masa(from_masa_id)
-            if unpaid_cnt == 0:
-                self.masa_repo.update_durum(from_masa_id, 'bos')
-                clear_browsing_table(from_masa_id)
+            self.masa_repo.update_durum(to_masa_id, 'dolu')
+            self.masa_repo.update_durum(from_masa_id, 'bos')
+            clear_browsing_table(from_masa_id)
+            TABLE_MOVES_MAP[from_masa_id] = to_masa_id
         
-        await event_bus.publish("masa_durumu_degisti", {"masa_id": from_masa_id, "durum": "bos"})
-        await event_bus.publish("masa_durumu_degisti", {"masa_id": to_masa_id, "durum": "dolu"})
-        await event_bus.publish("durum_guncellendi", {"from_masa_id": from_masa_id, "to_masa_id": to_masa_id})
+        event_payload = {
+            "from_masa_id": from_masa_id,
+            "from_masa_no": from_masa_no,
+            "to_masa_id": to_masa_id,
+            "to_masa_no": to_masa_no,
+            "is_move": True
+        }
+        await event_bus.publish("masa_tasindi", event_payload)
+        await event_bus.publish("masa_durumu_degisti", {"masa_id": to_masa_id, "durum": "dolu", "is_move": True})
+        await event_bus.publish("durum_guncellendi", event_payload)

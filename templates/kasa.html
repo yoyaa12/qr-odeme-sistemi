@@ -60,7 +60,9 @@
                 <div class="vega-search-box" style="display: flex; gap: 8px; flex: 1;">
                     <input type="text" id="kasaSearchInput" placeholder="🔎 Masa No Ara (Örn: 1, S-1...)"
                         oninput="renderKasaGrid()" style="flex: 1;">
-                    <button type="button" class="btn-add" style="background: linear-gradient(135deg, #6366f1, #4f46e5); font-size: 0.85rem; padding: 6px 12px; white-space: nowrap;" onclick="toggleTableMoveMode()">
+                    <button type="button" class="btn-add"
+                        style="background: linear-gradient(135deg, #6366f1, #4f46e5); font-size: 0.85rem; padding: 6px 12px; white-space: nowrap;"
+                        onclick="toggleTableMoveMode()">
                         🔄 Masa Taşı (F7)
                     </button>
                 </div>
@@ -70,9 +72,12 @@
             <div id="moveModeBanner" class="move-mode-banner" style="display: none;">
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <span style="font-size: 1.4rem;">🔄</span>
-                    <strong id="moveModeBannerText" style="font-size: 1rem; color: #fbbf24;">MASA TAŞIMA MODU: Lütfen taşınacak (Kaynak) masaya tıklayınız...</strong>
+                    <strong id="moveModeBannerText" style="font-size: 1rem; color: #fbbf24;">MASA TAŞIMA MODU: Lütfen
+                        taşınacak (Kaynak) masaya tıklayınız...</strong>
                 </div>
-                <button type="button" class="shortcut-chip" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.5); padding: 6px 12px;" onclick="cancelTableMoveMode()">
+                <button type="button" class="shortcut-chip"
+                    style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.5); padding: 6px 12px;"
+                    onclick="cancelTableMoveMode()">
                     ✖ Moddan Çık / İptal
                 </button>
             </div>
@@ -98,10 +103,12 @@
         </section>
 
         <!-- GÖRÜNÜM 2: SEÇİLİ MASA ADİSYON DETAY İŞ İSTASYONU (TAM EKRAN SPLIT LAYOUT) -->
-        <section id="viewMasaDetay" class="vega-ticket-section" style="display: none; flex-direction: row !important; height: 100%;">
+        <section id="viewMasaDetay" class="vega-ticket-section"
+            style="display: none; flex-direction: row !important; height: 100%;">
 
             <!-- SOL BÖLÜM: ADİSYON DETAYI & TABLO (Genişlik: 58%) -->
-            <div class="masa-detay-left" style="flex: 58; display: flex; flex-direction: column; border-right: 1px solid rgba(255, 255, 255, 0.08); overflow: hidden;">
+            <div class="masa-detay-left"
+                style="flex: 58; display: flex; flex-direction: column; border-right: 1px solid rgba(255, 255, 255, 0.08); overflow: hidden;">
                 <!-- SEÇİLİ MASA ÜST NAVİGASYON BAŞLIĞI VE KAPAT BUTONU -->
                 <div id="activeTicketHeader" class="vega-ticket-header">
                     <div class="vega-ticket-title-group">
@@ -127,58 +134,56 @@
                     </button>
                 </div>
 
-                <!-- ADİSYON KALEMLERİ TABLOSU (SATIRA Doğrudan Tıklanarak Seçim Yapılır - Checkbox YOK) -->
-                <div class="vega-ticket-table-wrapper" style="flex: 1; overflow-y: auto;">
-                    <table class="vega-ticket-table">
-                        <thead>
-                            <tr>
-                                <th>Ürün Adı & Notu</th>
-                                <th style="text-align: center; width: 60px;">Adet</th>
-                                <th style="text-align: right; width: 100px;">Birim Fiyat</th>
-                                <th style="text-align: right; width: 120px;">İskonto/İkram</th>
-                                <th style="text-align: right; width: 100px;">Toplam</th>
-                            </tr>
-                        </thead>
-                        <tbody id="ticketItemsBody">
-                            <tr>
-                                <td colspan="5" class="vega-empty-ticket">
-                                    <div style="font-size: 2.5rem; margin-bottom: 8px;">🛒</div>
-                                    <div>Lütfen masalar ekranından bir masaya tıklayınız.</div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <!-- SİPARİŞ FİŞ PAKETLERİ (ORDER BATCHES) Kapsayıcısı -->
+                <div id="ticketBatchesWrapper" class="vega-ticket-table-wrapper"
+                    style="flex: 1; overflow-y: auto; padding: 12px;">
+                    <div id="ticketItemsBody">
+                        <div class="vega-empty-ticket"
+                            style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
+                            <div style="font-size: 2.5rem; margin-bottom: 8px;">🛒</div>
+                            <div>Lütfen masalar ekranından bir masaya tıklayınız.</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- SAĞ BÖLÜM: ÖDEME PANELİ, ALT ALTA ÖZET & BUTONLAR (Genişlik: 42%) -->
-            <div class="masa-detay-right" style="flex: 42; display: flex; flex-direction: column; background: rgba(0,0,0,0.15); box-sizing: border-box; overflow: hidden; padding: 14px; justify-content: space-between;">
-                
+            <div class="masa-detay-right"
+                style="flex: 42; display: flex; flex-direction: column; background: rgba(0,0,0,0.15); box-sizing: border-box; overflow: hidden; padding: 14px; justify-content: space-between;">
+
                 <!-- 1. ALT ALTA HESAP ÖZETİ BİLGİ ALANI -->
-                <div style="background: rgba(15, 23, 42, 0.6); border: 1.5px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px;">
-                    <h3 style="margin: 0 0 4px 0; color: #fff; font-size: 1.05rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 4px; font-weight: 800;">🧾 Adisyon Hesap Özeti</h3>
-                    
-                    <div style="display: flex; justify-content: space-between; font-size: 1rem; font-weight: 700; color: #cbd5e1;">
+                <div
+                    style="background: rgba(15, 23, 42, 0.6); border: 1.5px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px;">
+                    <h3
+                        style="margin: 0 0 4px 0; color: #fff; font-size: 1.05rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 4px; font-weight: 800;">
+                        🧾 Adisyon Hesap Özeti</h3>
+
+                    <div
+                        style="display: flex; justify-content: space-between; font-size: 1rem; font-weight: 700; color: #cbd5e1;">
                         <span>Toplam Tutar:</span>
                         <strong id="valToplam" style="color: #fff; font-size: 1.1rem;">0.00 ₺</strong>
                     </div>
-                    
-                    <div id="rowDiscountDetail" style="display: flex; visibility: hidden; justify-content: space-between; font-size: 0.95rem; font-weight: 700; color: #f97316; min-height: 22px;">
+
+                    <div id="rowDiscountDetail"
+                        style="display: flex; visibility: hidden; justify-content: space-between; font-size: 0.95rem; font-weight: 700; color: #f97316; min-height: 22px;">
                         <span>İndirim / İskonto:</span>
                         <strong id="valDiscount">0.00 ₺</strong>
                     </div>
 
-                    <div style="display: flex; justify-content: space-between; font-size: 1rem; font-weight: 700; color: #38bdf8;">
+                    <div
+                        style="display: flex; justify-content: space-between; font-size: 1rem; font-weight: 700; color: #38bdf8;">
                         <span>Ödenen Tutar:</span>
                         <strong id="valOdenen" style="font-size: 1.1rem;">0.00 ₺</strong>
                     </div>
 
-                    <div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: 900; color: #fbbf24; border-top: 1px dashed rgba(255,255,255,0.15); padding-top: 6px; margin-top: 2px;">
+                    <div
+                        style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: 900; color: #fbbf24; border-top: 1px dashed rgba(255,255,255,0.15); padding-top: 6px; margin-top: 2px;">
                         <span>Kalan Tutar:</span>
                         <strong id="valKalan" style="font-size: 1.3rem;">0.00 ₺</strong>
                     </div>
 
-                    <div id="rowSecimDetail" style="display: flex; visibility: hidden; justify-content: space-between; font-size: 0.95rem; font-weight: 700; color: #34d399; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 4px; min-height: 24px;">
+                    <div id="rowSecimDetail"
+                        style="display: flex; visibility: hidden; justify-content: space-between; font-size: 0.95rem; font-weight: 700; color: #34d399; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 4px; min-height: 24px;">
                         <span>Seçilen Tutar:</span>
                         <strong id="valSecim" style="font-size: 1.1rem;">0.00 ₺</strong>
                     </div>
@@ -187,16 +192,22 @@
                 <!-- 2. NAKİT & POS AYRI KUTUCUKLARI (HIZLI HESAP ALMA İÇİN) -->
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
                     <!-- NAKİT KUTUCUĞU -->
-                    <div style="background: rgba(16, 185, 129, 0.06); border: 1.5px solid #10b981; padding: 10px; border-radius: var(--radius-md);">
-                        <label style="font-size: 0.8rem; font-weight: 800; color: #34d399; margin-bottom: 4px; display: block;">💵 NAKİT ÖDEME (₺):</label>
+                    <div
+                        style="background: rgba(16, 185, 129, 0.06); border: 1.5px solid #10b981; padding: 10px; border-radius: var(--radius-md);">
+                        <label
+                            style="font-size: 0.8rem; font-weight: 800; color: #34d399; margin-bottom: 4px; display: block;">💵
+                            NAKİT ÖDEME (₺):</label>
                         <input type="number" id="tutarNakitInput" step="0.01" min="0" class="form-control"
                             style="background: rgba(0,0,0,0.6); color: #fff; padding: 8px; font-size: 1.2rem; font-weight: 900; text-align: center; border: 1px solid #10b981; width: 100%; box-sizing: border-box;"
                             placeholder="0.00" oninput="limitDecimals(this); updateDualPaymentSum()">
                     </div>
 
                     <!-- POS KUTUCUĞU -->
-                    <div style="background: rgba(6, 182, 212, 0.06); border: 1.5px solid #06b6d4; padding: 10px; border-radius: var(--radius-md);">
-                        <label style="font-size: 0.8rem; font-weight: 800; color: #38bdf8; margin-bottom: 4px; display: block;">💳 KREDİ KARTI / POS (₺):</label>
+                    <div
+                        style="background: rgba(6, 182, 212, 0.06); border: 1.5px solid #06b6d4; padding: 10px; border-radius: var(--radius-md);">
+                        <label
+                            style="font-size: 0.8rem; font-weight: 800; color: #38bdf8; margin-bottom: 4px; display: block;">💳
+                            KREDİ KARTI / POS (₺):</label>
                         <input type="number" id="tutarKartInput" step="0.01" min="0" class="form-control"
                             style="background: rgba(0,0,0,0.6); color: #fff; padding: 8px; font-size: 1.2rem; font-weight: 900; text-align: center; border: 1px solid #06b6d4; width: 100%; box-sizing: border-box;"
                             placeholder="0.00" oninput="limitDecimals(this); updateDualPaymentSum()">
@@ -205,13 +216,17 @@
 
                 <!-- KISAYOL BUTONLARI -->
                 <div style="display: flex; gap: 6px; margin-bottom: 16px;">
-                    <button type="button" id="btnChipNakit" class="shortcut-chip" style="flex: 1.1; text-align: center; padding: 10px 4px; font-weight: 800; transition: all 0.2s;"
+                    <button type="button" id="btnChipNakit" class="shortcut-chip"
+                        style="flex: 1.1; text-align: center; padding: 10px 4px; font-weight: 800; transition: all 0.2s;"
                         onclick="fillDualAmount('nakit')">💵 NAKİT</button>
-                    <button type="button" id="btnChipPos" class="shortcut-chip" style="flex: 1.1; text-align: center; padding: 10px 4px; font-weight: 800; transition: all 0.2s;"
+                    <button type="button" id="btnChipPos" class="shortcut-chip"
+                        style="flex: 1.1; text-align: center; padding: 10px 4px; font-weight: 800; transition: all 0.2s;"
                         onclick="fillDualAmount('pos')">💳 KART</button>
-                    <button type="button" id="btnChipHalf" class="shortcut-chip" style="flex: 1.2; text-align: center; padding: 10px 4px; font-weight: 800; background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); transition: all 0.2s;"
+                    <button type="button" id="btnChipHalf" class="shortcut-chip"
+                        style="flex: 1.2; text-align: center; padding: 10px 4px; font-weight: 800; background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); transition: all 0.2s;"
                         onclick="fillDualAmount('half')">⚖️ ½ Yarısını Al</button>
-                    <button type="button" id="btnChipClear" class="shortcut-chip" style="flex: 0.9; text-align: center; padding: 10px 4px; font-weight: 800; background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); transition: all 0.2s;"
+                    <button type="button" id="btnChipClear" class="shortcut-chip"
+                        style="flex: 0.9; text-align: center; padding: 10px 4px; font-weight: 800; background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); transition: all 0.2s;"
                         onclick="fillDualAmount('clear')">🧹 Temizle</button>
                 </div>
 
@@ -223,27 +238,34 @@
                 </button>
 
                 <!-- KASA AKSİYON BAR (F5-F8 TUŞLARI İÇİN HIZLI BUTONLAR ALT KISIMDA) -->
-                <div class="vega-action-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: auto;">
-                    <button class="vega-act-btn btn-iskonto" style="padding: 10px 6px; font-size: 0.85rem;" onclick="openDiscountModal()">
+                <div class="vega-action-grid"
+                    style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: auto;">
+                    <button class="vega-act-btn btn-iskonto" style="padding: 10px 6px; font-size: 0.85rem;"
+                        onclick="openDiscountModal()">
                         <span class="btn-fkey">F5</span>
                         <span class="btn-label">İSKONTO YAP</span>
                     </button>
-                    <button class="vega-act-btn btn-ikram" style="padding: 10px 6px; font-size: 0.85rem;" onclick="applyIkramToSelectedItems()">
+                    <button class="vega-act-btn btn-ikram" style="padding: 10px 6px; font-size: 0.85rem;"
+                        onclick="applyIkramToSelectedItems()">
                         <span class="btn-fkey">F6</span>
                         <span class="btn-label">İKRAM ET</span>
                     </button>
-                    <button class="vega-act-btn btn-tasi" style="padding: 10px 6px; font-size: 0.85rem;" onclick="openMoveTableModal()">
+                    <button class="vega-act-btn btn-tasi" style="padding: 10px 6px; font-size: 0.85rem;"
+                        onclick="openMoveTableModal()">
                         <span class="btn-fkey">F7</span>
                         <span class="btn-label">MASA TAŞI</span>
                     </button>
-                    <button class="vega-act-btn btn-fis" style="padding: 10px 6px; font-size: 0.85rem;" onclick="printReceiptPreview()">
+                    <button class="vega-act-btn btn-fis" style="padding: 10px 6px; font-size: 0.85rem;"
+                        onclick="printReceiptPreview()">
                         <span class="btn-fkey">F8</span>
                         <span class="btn-label">FİŞ YAZDIR</span>
                     </button>
                 </div>
-                
+
                 <!-- MASAYI KAPAT VE TEMİZLE BUTONU (HER ZAMAN GÖRÜNÜR) -->
-                <button type="button" id="btnManualClearTable" class="btn-add" style="width: 100%; display: flex; justify-content: center; padding: 12px; font-size: 1rem; font-weight: 900; background: linear-gradient(135deg, #ef4444, #b91c1c); border-radius: 12px; margin-top: 8px; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3);" onclick="clearActiveTableManually()">
+                <button type="button" id="btnManualClearTable" class="btn-add"
+                    style="width: 100%; display: flex; justify-content: center; padding: 12px; font-size: 1rem; font-weight: 900; background: linear-gradient(135deg, #ef4444, #b91c1c); border-radius: 12px; margin-top: 8px; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3);"
+                    onclick="clearActiveTableManually()">
                     🧹 MASAYI TEMİZLE & ZORLA KAPAT
                 </button>
             </div>
@@ -291,7 +313,8 @@
                     Oranı (%):</label>
                 <input type="number" id="discountValueInput" step="0.01" min="0" class="form-control"
                     style="font-size: 1.3rem; font-weight: 800; text-align: center; background: rgba(0,0,0,0.5); color: #fff;"
-                    placeholder="0" oninput="limitDecimals(this)" onkeydown="if(event.key === 'Enter') confirmDiscount()">
+                    placeholder="0" oninput="limitDecimals(this)"
+                    onkeydown="if(event.key === 'Enter') confirmDiscount()">
             </div>
 
             <div style="display: flex; gap: 10px;">
@@ -361,25 +384,34 @@
 
     <!-- KASA ÖDEME TEYİT MODALİ (WEB ARAYÜZÜ İÇİNDE MODERN MODAL) -->
     <div id="posPaymentConfirmModal" class="modal-overlay" style="z-index: 10005;">
-        <div class="modal-content" style="max-width: 440px; text-align: center; border-top: 4px solid #10b981; padding: 24px; background: #0f172a; color: #fff; box-shadow: 0 20px 40px rgba(0,0,0,0.8);">
+        <div class="modal-content"
+            style="max-width: 440px; text-align: center; border-top: 4px solid #10b981; padding: 24px; background: #0f172a; color: #fff; box-shadow: 0 20px 40px rgba(0,0,0,0.8);">
             <div style="font-size: 2.5rem; margin-bottom: 8px;">💳</div>
             <h3 style="font-size: 1.3rem; margin-bottom: 12px; color: #38bdf8;">Ödeme Tahsilat Onayı</h3>
-            <p id="posConfirmMasaInfo" style="font-size: 1.15rem; font-weight: 800; color: #fbbf24; margin-bottom: 14px;"></p>
-            
-            <div id="posConfirmDetailsBox" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 14px; margin-bottom: 20px; font-size: 0.95rem; text-align: left; display: flex; flex-direction: column; gap: 8px;">
+            <p id="posConfirmMasaInfo"
+                style="font-size: 1.15rem; font-weight: 800; color: #fbbf24; margin-bottom: 14px;"></p>
+
+            <div id="posConfirmDetailsBox"
+                style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 14px; margin-bottom: 20px; font-size: 0.95rem; text-align: left; display: flex; flex-direction: column; gap: 8px;">
                 <!-- JS ile doldurulacak -->
             </div>
 
             <div style="display: flex; flex-direction: column; gap: 10px;">
                 <div style="display: flex; gap: 10px;">
-                    <button type="button" class="btn-add" style="flex: 1; justify-content: center; padding: 12px; font-size: 0.92rem; font-weight: 800; background: linear-gradient(135deg, #0284c7, #0369a1); box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);" onclick="executeConfirmedMainPayment(false)">
+                    <button type="button" class="btn-add"
+                        style="flex: 1; justify-content: center; padding: 12px; font-size: 0.92rem; font-weight: 800; background: linear-gradient(135deg, #0284c7, #0369a1); box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);"
+                        onclick="executeConfirmedMainPayment(false)">
                         💵 Ödemeyi Al (Masada Kal)
                     </button>
-                    <button type="button" class="btn-add" style="flex: 1; justify-content: center; padding: 12px; font-size: 0.92rem; font-weight: 900; background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);" onclick="executeConfirmedMainPayment(true)">
+                    <button type="button" class="btn-add"
+                        style="flex: 1; justify-content: center; padding: 12px; font-size: 0.92rem; font-weight: 900; background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);"
+                        onclick="executeConfirmedMainPayment(true)">
                         🖨️ Öde & Fiş Yazdır
                     </button>
                 </div>
-                <button type="button" class="shortcut-chip" style="width: 100%; padding: 10px; font-size: 0.88rem; font-weight: 700; background: rgba(255,255,255,0.08); color: #cbd5e1;" onclick="closeModal('posPaymentConfirmModal')">
+                <button type="button" class="shortcut-chip"
+                    style="width: 100%; padding: 10px; font-size: 0.88rem; font-weight: 700; background: rgba(255,255,255,0.08); color: #cbd5e1;"
+                    onclick="closeModal('posPaymentConfirmModal')">
                     ✖ Vazgeç / İptal
                 </button>
             </div>
@@ -388,13 +420,15 @@
 
     <!-- 5. GÖRSEL MASA VE ÜRÜN TRANSFER MODALİ -->
     <div id="visualTransferModal" class="modal-overlay" style="z-index: 10006;">
-        <div class="modal-content" style="max-width: 480px; padding: 22px; border-top: 4px solid #6366f1; background: #0f172a; color: #fff;">
+        <div class="modal-content"
+            style="max-width: 480px; padding: 22px; border-top: 4px solid #6366f1; background: #0f172a; color: #fff;">
             <div class="modal-header">
                 <h3 style="color:#fff; font-size: 1.25rem;">🔄 Masa & Adisyon Aktarımı</h3>
                 <button class="modal-close" onclick="closeModal('visualTransferModal')">✖</button>
             </div>
 
-            <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 12px; margin: 12px 0; text-align: center;">
+            <div
+                style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 12px; margin: 12px 0; text-align: center;">
                 <div id="transferRouteTitle" style="font-size: 1.15rem; font-weight: 800; color: #38bdf8;">
                     Masa 1 ➔ Masa 5
                 </div>
@@ -405,31 +439,40 @@
 
             <!-- AKTARIM TÜRÜ TABLARI -->
             <div style="display: flex; gap: 8px; margin-bottom: 14px;">
-                <button type="button" id="btnTransferTypeAll" class="btn-add" style="flex:1; justify-content: center; background: #6366f1; color: #fff;" onclick="setTransferType('all')">
+                <button type="button" id="btnTransferTypeAll" class="btn-add"
+                    style="flex:1; justify-content: center; background: #6366f1; color: #fff;"
+                    onclick="setTransferType('all')">
                     📦 Tüm Masayı Taşı
                 </button>
-                <button type="button" id="btnTransferTypeItems" class="btn-add" style="flex:1; justify-content: center; background: rgba(255,255,255,0.1); color: #cbd5e1;" onclick="setTransferType('items')">
+                <button type="button" id="btnTransferTypeItems" class="btn-add"
+                    style="flex:1; justify-content: center; background: rgba(255,255,255,0.1); color: #cbd5e1;"
+                    onclick="setTransferType('items')">
                     🍽️ Seçili Ürünleri Taşı
                 </button>
             </div>
 
             <!-- SEÇİLİ ÜRÜNLER LİSTESİ ALANI (SABİT YÜKSEKLİK - KAYMAYI ÖNLER) -->
-            <div id="transferItemsContainer" style="height: 150px; min-height: 150px; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 10px; margin-bottom: 14px; box-sizing: border-box;">
+            <div id="transferItemsContainer"
+                style="height: 150px; min-height: 150px; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 10px; margin-bottom: 14px; box-sizing: border-box;">
                 <!-- JS ile sipariş kalemleri checkbox ile render edilir -->
             </div>
 
             <div style="display: flex; gap: 10px; margin-top: 14px;">
-                <button type="button" class="shortcut-chip" style="flex:1; padding: 12px; font-size: 0.95rem; font-weight:700;" onclick="closeModal('visualTransferModal')">
+                <button type="button" class="shortcut-chip"
+                    style="flex:1; padding: 12px; font-size: 0.95rem; font-weight:700;"
+                    onclick="closeModal('visualTransferModal')">
                     ✖ İptal
                 </button>
-                <button type="button" class="btn-add" style="flex:1.4; justify-content: center; padding: 12px; font-size: 1rem; font-weight: 900; background: linear-gradient(135deg, #10b981, #059669);" onclick="confirmVisualTableTransfer()">
+                <button type="button" class="btn-add"
+                    style="flex:1.4; justify-content: center; padding: 12px; font-size: 1rem; font-weight: 900; background: linear-gradient(135deg, #10b981, #059669);"
+                    onclick="confirmVisualTableTransfer()">
                     ✅ Aktarımı Tamamla
                 </button>
             </div>
         </div>
     </div>
 
-    <script src="/static/js/kasa.js?v=24"></script>
+    <script src="/static/js/kasa.js?v=46"></script>
 </body>
 
 </html>

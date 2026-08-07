@@ -156,13 +156,37 @@ function showSecurityError(msg) {
     if (cartDock) cartDock.style.display = 'none';
 }
 
+function formatShortMasaNo(masaNo) {
+    if (!masaNo) return 'M-1';
+    let str = masaNo.trim();
+    if (str.toLowerCase().includes('developer')) return 'DEV';
+
+    const parts = str.split(/\s+/);
+    if (parts.length >= 2) {
+        const firstChar = parts[0].charAt(0).toUpperCase();
+        const number = parts[parts.length - 1];
+        if (/^\d+$/.test(number)) {
+            return `${firstChar}-${number}`;
+        }
+    }
+    if (str.toLowerCase().startsWith('masa ')) {
+        return 'M-' + str.substring(5).trim();
+    }
+    return str;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     const urlParams = new URLSearchParams(window.location.search);
-    const masaParam = urlParams.get('masa') || '1';
+    let masaParam = urlParams.get('masa') || '1';
     const tokenParam = urlParams.get('token');
 
+    // 192.168.1.100:8000 ile bağlanan kullanıcılar masa 1 butonuna tıkladığında veya masa 1 açıldığında dev masası (99) açılsın
+    if ((window.location.hostname === '192.168.1.100' || window.location.host === '192.168.1.100:8000') && masaParam === '1' && !tokenParam) {
+        masaParam = '99';
+    }
+
     state.masaId = parseInt(masaParam);
-    state.masaNo = `Masa ${state.masaId}`; // Fallback
+    state.masaNo = state.masaId === 99 ? 'Developer Masası' : `Masa ${state.masaId}`; // Fallback
 
     // --- DİNAMİK QR GÜVENLİK KONTROLÜ ---
     if (state.masaId !== 99) {
@@ -175,7 +199,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const verifyRes = await fetch(`/api/masalar/${state.masaId}/verify-qr`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token: tokenParam })
+                body: JSON.stringify({ token: tokenParam, device_id: state.deviceId })
             });
             const verifyData = await verifyRes.json();
             if (!verifyData.valid) {
@@ -192,6 +216,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         const mRes = await fetch('/api/masalar');
         const mData = await mRes.json();
+
         const gercekMasa = mData.find(m => m.id === state.masaId);
         if (gercekMasa) {
             state.masaNo = gercekMasa.masa_no;
@@ -199,7 +224,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e) { console.error(e); }
 
     const tableBadge = document.getElementById('tableBadge');
-    if (tableBadge) tableBadge.innerHTML = `🪑 ${state.masaNo}`;
+    if (tableBadge) {
+        const shortNo = formatShortMasaNo(state.masaNo);
+        tableBadge.innerHTML = `🪑 ${shortNo}`;
+        tableBadge.title = state.masaNo;
+    }
 
     // Dil seçimi yapılmamışsa aç
     if (!state.language) {
@@ -209,6 +238,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadCategories();
     loadProducts();
     checkActiveOrder(); // F5 RECOVERY: Sayfa yenilendiğinde aktif siparişi getirir!
+    initCategoryScrollNavigation(); // Kategori otomatik kaydırma geçişi
 
     // Socket.io Canlı Dinleyici (Otomatik Reconnection Ayarları)
     socket = io({
@@ -224,9 +254,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     socket.on('durum_guncellendi', (data) => {
-        if (data.masa_id === state.masaId) {
+        if (data && data.from_masa_id && parseInt(data.from_masa_id) === parseInt(state.masaId)) {
+            handleTableMove(data.from_masa_id, data.to_masa_id, data.to_masa_no, data.from_masa_no);
+            return;
+        }
+        if (data && data.is_move) return;
+        if (data && data.masa_id === state.masaId) {
             if (data.yeni_durum === 'bos') {
                 state.currentOrder = null;
+                state.activeOrders = [];
                 const container = document.getElementById('orderTrackingContainer');
                 if (container) container.style.display = 'none';
             } else {
@@ -237,8 +273,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     socket.on('masa_temizlendi', (data) => {
+        if (data && data.is_move) return;
         if (data && data.masa_id === state.masaId) {
             state.currentOrder = null;
+            state.activeOrders = [];
             state.cart = [];
             updateCartUI();
             const container = document.getElementById('orderTrackingContainer');
@@ -248,8 +286,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     socket.on('masa_durumu_degisti', (data) => {
+        if (data && data.is_move) return;
         if (data && data.masa_id === state.masaId && data.durum === 'bos') {
             state.currentOrder = null;
+            state.activeOrders = [];
             state.cart = [];
             updateCartUI();
             const container = document.getElementById('orderTrackingContainer');
@@ -258,24 +298,188 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     socket.on('nakit_odendi', (data) => {
-        if (data.masa_id === state.masaId) {
+        if (data && data.masa_id === state.masaId) {
             checkActiveOrder();
             playNotificationSound();
             showToast("💵 Garson nakit ödemenizi tahsil etti. Teşekkürler!");
         }
     });
+
+    socket.on('yeni_siparis', (data) => {
+        if (data && data.masa_id === state.masaId) {
+            checkActiveOrder();
+            playNotificationSound();
+        }
+    });
+
+    socket.on('masa_tasindi', (data) => {
+        if (data && parseInt(data.from_masa_id) === parseInt(state.masaId)) {
+            handleTableMove(data.from_masa_id, data.to_masa_id, data.to_masa_no, data.from_masa_no);
+        }
+    });
+
+    // Otomatik Masa Taşıma Kontrolü (Socket harici 3 saniyelik periyodik canlı kontrol)
+    setInterval(() => {
+        if (state.masaId) {
+            checkActiveOrder();
+        }
+    }, 3000);
+
+    // Sekme/Ekran tekrar aktif olduğunda kontrol et
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && state.masaId) {
+            checkActiveOrder();
+        }
+    });
 });
 
-// F5 İLE SAYFA YENİLENDİĞİNDE MÜŞTERİNİN AKTİF SİPARİŞİNİ KURTARAN FONKSİYON
+window.handleTableMove = function (fromMasaId, toMasaId, toMasaNo, fromMasaNo) {
+    if (!toMasaId) return;
+
+    const isAlreadyOnNewTable = parseInt(toMasaId) === parseInt(state.masaId);
+    const modalIsActive = document.getElementById('tableTransferModal')?.classList.contains('active');
+
+    if (isAlreadyOnNewTable && modalIsActive) {
+        return;
+    }
+
+    const oldMasaNo = fromMasaNo || state.masaNo || `Masa ${fromMasaId}`;
+    state.masaId = parseInt(toMasaId);
+    state.masaNo = toMasaNo || `Masa ${toMasaId}`;
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('masa', state.masaId);
+    window.history.replaceState({}, '', url);
+
+    if (socket && socket.connected) {
+        socket.emit('musteri_oturdu', { masa_id: state.masaId, masa_no: state.masaNo });
+    }
+
+    const masaBadge = document.getElementById('tableBadge');
+    if (masaBadge) {
+        const shortNo = formatShortMasaNo(state.masaNo);
+        masaBadge.innerHTML = `🪑 ${shortNo}`;
+        masaBadge.title = state.masaNo;
+        masaBadge.classList.remove('badge-pulse');
+        void masaBadge.offsetWidth;
+        masaBadge.classList.add('badge-pulse');
+    }
+
+    const fromBadgeEl = document.getElementById('transferFromBadge');
+    const toBadgeEl = document.getElementById('transferToBadge');
+    const transferModal = document.getElementById('tableTransferModal');
+    if (fromBadgeEl) fromBadgeEl.innerText = formatShortMasaNo(oldMasaNo);
+    if (toBadgeEl) toBadgeEl.innerText = formatShortMasaNo(state.masaNo);
+    if (transferModal) transferModal.classList.add('active');
+
+    playNotificationSound();
+    showToast(`🔄 Adisyonunuz ve oturumunuz ${state.masaNo} masasına taşındı.`);
+};
+
+// AKICI VE KESİNTİSİZ NATIVE KATEGORİ KAYDIRMA SİSTEMİ (INTERSECTION OBSERVER)
+let categoryObserver = null;
+
+function initCategoryIntersectionObserver() {
+    const section = document.querySelector('.menu-products-section');
+    if (!section) return;
+
+    if (categoryObserver) {
+        categoryObserver.disconnect();
+    }
+
+    const options = {
+        root: section,
+        rootMargin: '-10% 0px -65% 0px',
+        threshold: 0
+    };
+
+    categoryObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const catIdAttr = entry.target.getAttribute('data-cat-id');
+                const catId = (catIdAttr && catIdAttr !== 'other') ? parseInt(catIdAttr) : null;
+                if (state.activeKategoriId !== catId) {
+                    state.activeKategoriId = catId;
+                    updateSidebarActiveStateOnly();
+                }
+            }
+        });
+    }, options);
+
+    const sections = section.querySelectorAll('.category-section');
+    sections.forEach(s => categoryObserver.observe(s));
+}
+
+function updateSidebarActiveStateOnly() {
+    const container = document.getElementById('categoryGridBar');
+    if (!container) return;
+
+    const cards = container.querySelectorAll('.category-card-box');
+    cards.forEach(card => {
+        const onclickAttr = card.getAttribute('onclick') || '';
+        if (state.activeKategoriId !== null && onclickAttr.includes(`selectCategory(${state.activeKategoriId})`)) {
+            card.classList.add('active');
+            card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+            card.classList.remove('active');
+        }
+    });
+
+    updateCategoryHeaderTitle(state.activeKategoriId);
+}
+
+function selectCategory(catId) {
+    if (!catId) return;
+    state.activeKategoriId = catId;
+    updateSidebarActiveStateOnly();
+
+    const targetSec = document.getElementById(`cat-section-${catId}`);
+    if (targetSec) {
+        targetSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+function updateCategoryHeaderTitle(catId) {
+    const titleEl = document.getElementById('activeCategoryTitle');
+    if (!titleEl) return;
+    const cat = state.kategoriler.find(c => c.id === catId);
+    if (cat) {
+        titleEl.innerText = cat.kategori_adi;
+    } else if (state.kategoriler.length > 0) {
+        titleEl.innerText = state.kategoriler[0].kategori_adi;
+    }
+}
+
+let isTrackingCollapsed = false;
+
+function toggleTrackingUI() {
+    isTrackingCollapsed = !isTrackingCollapsed;
+    renderOrderTrackingUI();
+}
+
+// SAYFA YENİLENDİĞİNDE VEYA SEKME DEĞİŞTİĞİNDE MÜŞTERİNİN TÜM AKTİF SİPARİŞLERİNİ GETİREN FONKSİYON
 async function checkActiveOrder() {
     try {
         const res = await fetch(`/api/masalar/${state.masaId}/aktif-siparis`);
         const data = await res.json();
-        if (data.has_active && data.siparis) {
-            state.currentOrder = data.siparis;
+
+        if (data.redirect_masa_id && parseInt(data.redirect_masa_id) !== parseInt(state.masaId)) {
+            const fromId = state.masaId;
+            const toId = parseInt(data.redirect_masa_id);
+            const toNo = data.redirect_masa_no || `Masa ${toId}`;
+            handleTableMove(fromId, toId, toNo);
+            return;
+        }
+
+        if (data.has_active && (data.siparisler && data.siparisler.length > 0 || data.siparis)) {
+            state.activeOrders = data.siparisler || [data.siparis];
+            state.currentOrder = data.siparis || state.activeOrders[state.activeOrders.length - 1];
+            state.genelToplam = data.genel_toplam || state.activeOrders.reduce((sum, o) => sum + (o.toplam_tutar || 0), 0);
             renderOrderTrackingUI();
         } else {
+            state.activeOrders = [];
             state.currentOrder = null;
+            state.genelToplam = 0;
             const container = document.getElementById('orderTrackingContainer');
             if (container) container.style.display = 'none';
         }
@@ -295,17 +499,18 @@ async function loadCategories() {
     try {
         const res = await fetch('/api/kategoriler');
         state.kategoriler = await res.json();
+        if (state.kategoriler.length > 0 && !state.activeKategoriId) {
+            state.activeKategoriId = state.kategoriler[0].id;
+        }
         renderCategoryGrid();
     } catch (e) {
         console.error("Kategoriler yüklenemedi:", e);
     }
 }
 
-async function loadProducts(kategoriId = null) {
+async function loadProducts() {
     try {
-        let url = '/api/urunler';
-        if (kategoriId) url += `?kategori_id=${kategoriId}`;
-        const res = await fetch(url);
+        const res = await fetch('/api/urunler');
         state.urunler = await res.json();
         renderProducts();
     } catch (e) {
@@ -318,12 +523,11 @@ function renderCategoryGrid() {
     const container = document.getElementById('categoryGridBar');
     if (!container) return;
 
-    let html = `
-        <div class="category-card-box ${state.activeKategoriId === null ? 'active' : ''}" onclick="selectCategory(null)">
-            <span class="category-card-icon">🍽️</span>
-            <span class="category-card-title">Tümü</span>
-        </div>
-    `;
+    if (state.kategoriler.length > 0 && !state.activeKategoriId) {
+        state.activeKategoriId = state.kategoriler[0].id;
+    }
+
+    let html = '';
 
     state.kategoriler.forEach(cat => {
         const icon = getCategoryIcon(cat.kategori_adi);
@@ -343,79 +547,178 @@ function renderCategoryGrid() {
     container.innerHTML = html;
 }
 
-function selectCategory(catId) {
-    state.activeKategoriId = catId;
-    renderCategoryGrid();
-    updateCategoryHeaderTitle(catId);
-    loadProducts(catId);
-}
-
-function updateCategoryHeaderTitle(catId) {
-    const titleEl = document.getElementById('activeCategoryTitle');
-    if (!titleEl) return;
-    if (catId === null) {
-        titleEl.innerText = "Tümü";
-    } else {
-        const cat = state.kategoriler.find(c => c.id === catId);
-        titleEl.innerText = cat ? cat.kategori_adi : "Tümü";
-    }
-}
-
-// ÜRÜN KARTLARI (2 KOLONLU, SEÇİLİLER MAVİ PARLAYAN VE AÇIKLAMASIZ TASARIM)
+// ÜRÜN KARTLARI (KESİNTİSİZ TEK LİSTE, STICKY KATEGORİ BAŞLIKLI)
 function renderProducts() {
     const grid = document.getElementById('productGrid');
     if (!grid) return;
 
     if (state.urunler.length === 0) {
-        grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-secondary); padding: 40px; background: rgba(255,255,255,0.02); border-radius: 16px; border: 1px dashed var(--border-color);">Bu kategoride henüz ürün bulunmuyor.</div>`;
+        grid.innerHTML = `<div style="text-align: center; color: var(--text-secondary); padding: 40px; background: rgba(255,255,255,0.02); border-radius: 16px; border: 1px dashed var(--border-color);">Bu kategoride henüz ürün bulunmuyor.</div>`;
         return;
     }
 
+    // Kategorilere göre ürünleri grupla
+    const grouped = {};
+    state.kategoriler.forEach(cat => {
+        grouped[cat.id] = {
+            category: cat,
+            products: []
+        };
+    });
+
+    const uncategorized = [];
+
+    state.urunler.forEach(prod => {
+        if (prod.kategori_id && grouped[prod.kategori_id]) {
+            grouped[prod.kategori_id].products.push(prod);
+        } else {
+            uncategorized.push(prod);
+        }
+    });
+
     let html = '';
-    const dummyRatings = ['4.9', '4.8', '5.0', '4.7', '4.9', '4.8'];
 
-    state.urunler.forEach((prod, index) => {
-        const catName = prod.kategori_adi ? prod.kategori_adi : '';
-        const icon = getCategoryIcon(catName);
-        const rating = dummyRatings[index % dummyRatings.length];
-        const hasImage = prod.gorsel_url && prod.gorsel_url.trim().length > 0;
+    state.kategoriler.forEach(cat => {
+        const group = grouped[cat.id];
+        if (!group || group.products.length === 0) return;
 
-        // Sepette bu üründen kaç tane var?
-        const cartItems = state.cart.filter(item => item.urun_id === prod.id);
-        const inCartQty = cartItems.reduce((sum, item) => sum + item.adet, 0);
-        const isSelected = inCartQty > 0;
+        const icon = getCategoryIcon(cat.kategori_adi);
+        html += `
+            <div class="category-section" id="cat-section-${cat.id}" data-cat-id="${cat.id}">
+                <div class="category-section-title">
+                    <h2>${icon} ${cat.kategori_adi}</h2>
+                </div>
+                <div class="category-products-list">
+        `;
+
+        group.products.forEach(prod => {
+            html += renderProductCardHTML(prod);
+        });
 
         html += `
-            <div class="product-card ${isSelected ? 'selected' : ''}" onclick="openProductNoteModal(${prod.id})">
-                <div class="product-card-image-box">
-                    ${hasImage
-                ? `<img src="${prod.gorsel_url}" alt="${prod.urun_adi}" class="product-card-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                           <div class="product-card-placeholder" style="display:none;"><span>${icon}</span></div>`
-                : `<div class="product-card-placeholder"><span>${icon}</span></div>`
-            }
-                    <div class="product-badge-price">₺${prod.fiyat.toFixed(0)}</div>
-                    <div class="product-badge-rating">★ ${rating}</div>
-                </div>
-                
-                <div class="product-card-body">
-                    <div class="product-title" title="${prod.urun_adi}">${prod.urun_adi}</div>
-                </div>
-
-                <div class="product-card-footer">
-                    <div class="product-price-bottom">₺${prod.fiyat.toFixed(0)}</div>
-                    <div class="product-card-footer-right">
-                        ${isSelected ? `<span class="product-cart-qty">${inCartQty}</span>` : ''}
-                        <button class="btn-add-circle ${isSelected ? 'active' : ''}" title="Sepete Ekle / Seç" onclick="event.stopPropagation(); openProductNoteModal(${prod.id})">
-                            <span>+</span>
-                        </button>
-                    </div>
                 </div>
             </div>
         `;
     });
 
+    if (uncategorized.length > 0) {
+        html += `
+            <div class="category-section" id="cat-section-other" data-cat-id="other">
+                <div class="category-section-title">
+                    <h2>🍴 Diğer Ürünler</h2>
+                </div>
+                <div class="category-products-list">
+        `;
+        uncategorized.forEach(prod => {
+            html += renderProductCardHTML(prod);
+        });
+        html += `
+                </div>
+            </div>
+        `;
+    }
+
     grid.innerHTML = html;
+    initCategoryIntersectionObserver();
 }
+
+function renderProductCardHTML(prod) {
+    const catName = prod.kategori_adi ? prod.kategori_adi : '';
+    const icon = getCategoryIcon(catName);
+    const hasImage = prod.gorsel_url && prod.gorsel_url.trim().length > 0;
+
+    const cartItems = state.cart.filter(item => item.urun_id === prod.id);
+    const inCartQty = cartItems.reduce((sum, item) => sum + item.adet, 0);
+    const isSelected = inCartQty > 0;
+
+    return `
+        <div class="product-card ${isSelected ? 'selected' : ''}" onclick="openProductNoteModal(${prod.id})">
+            <div class="product-card-image-box">
+                ${hasImage
+            ? `<img src="${prod.gorsel_url}" alt="${prod.urun_adi}" class="product-card-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                       <div class="product-card-placeholder" style="display:none;"><span>${icon}</span></div>`
+            : `<div class="product-card-placeholder"><span>${icon}</span></div>`
+        }
+            </div>
+
+            <div class="product-card-content">
+                <div class="product-title-row">
+                    <div class="product-title" title="${prod.urun_adi}">${prod.urun_adi}</div>
+                </div>
+
+                <div class="product-bottom-row">
+                    <div class="product-price-badge">${prod.fiyat.toFixed(0)} ₺</div>
+                    <div class="product-actions-right">
+                        ${isSelected ? `
+                            <div class="quantity-counter-box" onclick="event.stopPropagation();">
+                                <button class="btn-qty-step" title="Adet Azalt" onclick="quickAddToCart(event, ${prod.id}, -1)"><span>-</span></button>
+                                <span class="product-cart-qty-badge">${inCartQty}</span>
+                                <button class="btn-qty-step" title="Adet Artır" onclick="quickAddToCart(event, ${prod.id}, 1)"><span>+</span></button>
+                            </div>
+                        ` : `
+                            <button class="btn-add-circle" title="Sepete Ekle" onclick="quickAddToCart(event, ${prod.id}, 1)">
+                                <span>+</span>
+                            </button>
+                        `}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function quickAddToCart(event, productId, delta = 1) {
+    if (event) event.stopPropagation();
+
+    const prod = state.urunler.find(p => p.id === productId);
+    if (!prod) return;
+
+    const catName = (prod.kategori_adi || '').toLowerCase();
+    const prodName = (prod.urun_adi || '').toLowerCase();
+    const isPizza = prodName.includes('pizza') || catName.includes('pizza');
+
+    const cartItems = state.cart.filter(item => item.urun_id === productId);
+
+    if (delta > 0) {
+        if (cartItems.length > 0) {
+            const lastItem = cartItems[cartItems.length - 1];
+            lastItem.adet += 1;
+            lastItem.ara_toplam = lastItem.birim_fiyat * lastItem.adet;
+            notifyCartUpdateToSocket();
+            updateCartUI();
+            playNotificationSound();
+        } else if (isPizza) {
+            openProductNoteModal(productId);
+        } else {
+            state.cart.push({
+                id: Date.now(),
+                urun_id: prod.id,
+                urun_adi: prod.urun_adi,
+                birim_fiyat: prod.fiyat,
+                adet: 1,
+                urun_notu: '',
+                ara_toplam: prod.fiyat
+            });
+            notifyCartUpdateToSocket();
+            updateCartUI();
+            playNotificationSound();
+        }
+    } else if (delta < 0) {
+        if (cartItems.length > 0) {
+            const lastItem = cartItems[cartItems.length - 1];
+            lastItem.adet -= 1;
+            if (lastItem.adet <= 0) {
+                const idx = state.cart.findIndex(i => i.id === lastItem.id);
+                if (idx > -1) state.cart.splice(idx, 1);
+            } else {
+                lastItem.ara_toplam = lastItem.birim_fiyat * lastItem.adet;
+            }
+            notifyCartUpdateToSocket();
+            updateCartUI();
+        }
+    }
+}
+window.quickAddToCart = quickAddToCart;
 
 // ÜRÜN MODALİ
 function openProductNoteModal(productId) {
@@ -755,7 +1058,6 @@ function confirmAddToCart() {
     closeModal('productModal');
     updateCartUI();
     playNotificationSound();
-    showToast(`${fullTitle} sepete eklendi!`);
 }
 
 function notifyCartUpdateToSocket() {
@@ -784,10 +1086,16 @@ function updateCartUI() {
     if (cartPrice) cartPrice.innerText = `${totalPrice.toFixed(2)} ₺`;
 
     if (cartDock) {
-        cartDock.style.display = totalCount > 0 ? 'flex' : 'none';
+        const isShowing = totalCount > 0;
+        cartDock.style.display = isShowing ? 'flex' : 'none';
+
+        if (isShowing) {
+            cartDock.classList.remove('cart-dock-pop');
+            void cartDock.offsetWidth; // Reflow tetikle
+            cartDock.classList.add('cart-dock-pop');
+        }
     }
 
-    // Sepet değiştiğinde ürün kartlarındaki mavi neon seçili parlama ve adet rozetini güncelle
     renderProducts();
 }
 
@@ -970,6 +1278,10 @@ async function executeOrderSubmit(odemeYontemi) {
         }))
     };
 
+    if (state.currentTotpToken) {
+        payload.current_totp_token = state.currentTotpToken;
+    }
+
     try {
         const res = await fetch('/api/siparisler', {
             method: 'POST',
@@ -982,9 +1294,10 @@ async function executeOrderSubmit(odemeYontemi) {
         if (res.ok) {
             state.cart = [];
             state.currentOrder = data.siparis;
+            state.currentTotpToken = null; // Başarılı olunca temizle
             updateCartUI();
 
-            renderOrderTrackingUI();
+            await checkActiveOrder();
             playNotificationSound();
 
             if (odemeYontemi === 'pos') {
@@ -992,6 +1305,9 @@ async function executeOrderSubmit(odemeYontemi) {
             } else {
                 showToast("🛎️ Siparişiniz iletildi! Garsonumuz masanıza geliyor.");
             }
+        } else if (res.status === 403 && data.detail && data.detail.includes("6 haneli")) {
+            // İlk sipariş güvenlik onayı gerekiyor!
+            openFirstOrderPINModal(odemeYontemi);
         } else {
             alert(data.detail || "Hata oluştu.");
         }
@@ -1000,117 +1316,259 @@ async function executeOrderSubmit(odemeYontemi) {
     }
 }
 
+// ==========================================
+// İLK SİPARİŞ 6 HANELİ GÜVENLİK KODU (PIN)
+// ==========================================
+let pendingPaymentMethod = null;
+
+function openFirstOrderPINModal(odemeYontemi) {
+    pendingPaymentMethod = odemeYontemi;
+    const modal = document.getElementById('firstOrderPINModal');
+    if (modal) modal.classList.add('active');
+    
+    const input = document.getElementById('securityPinInput');
+    if (input) {
+        input.value = '';
+        input.focus();
+    }
+}
+
+function closeFirstOrderPINModal() {
+    const modal = document.getElementById('firstOrderPINModal');
+    if (modal) modal.classList.remove('active');
+}
+
+function submitFirstOrderPIN() {
+    const input = document.getElementById('securityPinInput');
+    if (!input || !input.value || input.value.length < 6) {
+        alert("Lütfen 6 haneli güvenlik kodunu eksiksiz girin.");
+        return;
+    }
+    
+    state.currentTotpToken = input.value.trim();
+    closeFirstOrderPINModal();
+    
+    // Modal kapanınca siparişi otomatik tekrar dene
+    const actionBox = document.getElementById('checkoutActionBox');
+    if (actionBox) {
+        const originalHTML = actionBox.innerHTML;
+        actionBox.innerHTML = `<div style="text-align:center; padding:14px; font-weight:800; color:var(--primary); font-size:1rem;">⏳ Güvenlik Sağlandı, Sipariş Gönderiliyor...</div>`;
+        setTimeout(() => {
+            executeOrderSubmit(pendingPaymentMethod).then(() => {
+                closeModal('paymentCheckoutModal');
+                actionBox.innerHTML = originalHTML;
+            });
+        }, 800);
+    } else {
+        executeOrderSubmit(pendingPaymentMethod);
+    }
+}
+
+function formatOrderTime(val) {
+    if (!val) return '';
+    if (typeof val === 'string') {
+        const trimmed = val.trim();
+        if (trimmed.length <= 8 && trimmed.includes(':')) {
+            const parts = trimmed.split(':');
+            return `${parts[0]}:${parts[1]}`;
+        }
+        const d = new Date(trimmed.replace(' ', 'T'));
+        if (!isNaN(d.getTime())) {
+            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+        return trimmed;
+    }
+    return '';
+}
+
+let expandedGroupDetailsMap = {};
+window.toggleGroupDetails = function (key) {
+    expandedGroupDetailsMap[key] = !expandedGroupDetailsMap[key];
+    renderOrderTrackingUI();
+};
+
 // CANLI SİPARİŞ TAKİP EKRANI (F5 İLE KANANMAZ + SİPARİŞ VERİLEN ÜRÜNLERİN LİSTESİ)
 function renderOrderTrackingUI() {
     const container = document.getElementById('orderTrackingContainer');
-    if (!container || !state.currentOrder) return;
+    if (!container) return;
 
-    const status = state.currentOrder.siparis_durumu;
+    const orders = state.activeOrders && state.activeOrders.length > 0 ? state.activeOrders : (state.currentOrder ? [state.currentOrder] : []);
+    if (orders.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
 
     container.style.display = 'block';
 
-    // Teslim edildi durumu
-    if (status === 'teslim_edildi') {
+    const latestOrder = orders[orders.length - 1];
+    const status = latestOrder.siparis_durumu;
+    const totalAdisyon = state.genelToplam || orders.reduce((acc, o) => acc + (o.toplam_tutar || 0), 0);
+
+    const chevronDownSVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle;"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
+    const chevronUpSVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle;"><polyline points="18 15 12 9 6 15"></polyline></svg>`;
+
+    // KAPANABİLİR / AÇILABİLİR KART KONTROLÜ (KAPALI HALDE)
+    if (isTrackingCollapsed) {
         container.innerHTML = `
-            <div class="tracking-card" style="border-color: var(--success); background: rgba(16, 185, 129, 0.1);">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
-                    <h3 style="font-size: 1.15rem; color: var(--success);">🎉 Masanıza Teslim Edildi</h3>
-                    <button style="background:none; color:var(--text-secondary); font-size:0.85rem; cursor:pointer;" onclick="dismissTrackingUI()">Kapat ✖</button>
+            <div class="tracking-card" style="padding: 10px 14px; cursor: pointer; border-radius: 14px;" onclick="toggleTrackingUI()">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="display:flex; align-items:center; gap: 8px;">
+                        <span style="font-size: 1.1rem;">📋</span>
+                        <span style="font-size: 0.92rem; font-weight: 700; color: var(--text-primary);">
+                            Adisyon (${orders.length} Sipariş • ${totalAdisyon.toFixed(2)} ₺)
+                        </span>
+                    </div>
+                    <span>${chevronDownSVG}</span>
                 </div>
-                <div style="font-size: 0.88rem; color: var(--text-secondary);">Afiyet olsun! Bizi tercih ettiğiniz için teşekkür ederiz.</div>
             </div>
         `;
         return;
     }
 
+    // TEK BİR NET DURUM BAŞLIĞI
     let currentStatusHTML = '';
 
     if (status === 'garson_onayi_bekliyor') {
         currentStatusHTML = `
-            <div class="single-status-banner active-step-received" style="border-color: #3b82f6; background: rgba(59, 130, 246, 0.15);">
-                <div class="status-icon-large">🛎️</div>
+            <div class="single-status-banner active-step-received" style="border-color: #3b82f6; background: rgba(59, 130, 246, 0.15); padding: 10px 14px; align-items: center; border-radius: 12px;">
+                <div class="status-icon-large" style="font-size: 1.4rem;">🛎️</div>
                 <div class="status-info">
-                    <div class="status-title-main" style="color:#3b82f6;">Garson Onayı Bekleniyor</div>
-                    <div class="status-sub-desc">Garsonumuz siparişi fiziken teyit etmek üzere masanıza geliyor. Ödemeyi yemeğin sonunda KASADA yapabilirsiniz.</div>
+                    <div class="status-title-main" style="color:#3b82f6; font-size: 1.05rem; font-weight: 700;">Garson Onayı Bekleniyor</div>
                 </div>
             </div>
         `;
     } else if (status === 'odendi_mutfakta' || status === 'garson_onayladi_mutfakta') {
         currentStatusHTML = `
-            <div class="single-status-banner active-step-received">
-                <div class="status-icon-large">✅</div>
+            <div class="single-status-banner active-step-received" style="padding: 10px 14px; align-items: center; border-radius: 12px;">
+                <div class="status-icon-large" style="font-size: 1.4rem;">✅</div>
                 <div class="status-info">
-                    <div class="status-title-main">Siparişiniz Alındı</div>
-                    <div class="status-sub-desc">Siparişiniz doğrulandı • Şeflerimiz siparişinizi hazırlamaya başladı! 👨‍🍳</div>
+                    <div class="status-title-main" style="font-size: 1.05rem; font-weight: 700;">Siparişiniz Alındı</div>
                 </div>
             </div>
         `;
     } else if (status === 'hazirlaniyor') {
         currentStatusHTML = `
-            <div class="single-status-banner active-step-preparing">
-                <div class="status-icon-large">👨‍🍳</div>
+            <div class="single-status-banner active-step-preparing" style="padding: 10px 14px; align-items: center; border-radius: 12px;">
+                <div class="status-icon-large" style="font-size: 1.4rem;">👨‍🍳</div>
                 <div class="status-info">
-                    <div class="status-title-main">Mutfakta Hazırlanıyor</div>
-                    <div class="status-sub-desc">Tahmini Hazırlanma Süresi: <strong style="color:#fbbf24;">~12 - 15 dk</strong></div>
+                    <div class="status-title-main" style="font-size: 1.05rem; font-weight: 700;">Mutfakta Hazırlanıyor</div>
                 </div>
             </div>
         `;
     } else if (status === 'hazir') {
         currentStatusHTML = `
-            <div class="single-status-banner active-step-ready">
-                <div class="status-icon-large">🔔</div>
+            <div class="single-status-banner active-step-ready" style="padding: 10px 14px; align-items: center; border-radius: 12px;">
+                <div class="status-icon-large" style="font-size: 1.4rem;">🔔</div>
                 <div class="status-info">
-                    <div class="status-title-main">Siparişiniz Hazır!</div>
-                    <div class="status-sub-desc">Garson yemeğinizi masanıza getirmek üzere yola çıktı.</div>
+                    <div class="status-title-main" style="font-size: 1.05rem; font-weight: 700;">Siparişiniz Hazır!</div>
+                </div>
+            </div>
+        `;
+    } else if (status === 'teslim_edildi') {
+        currentStatusHTML = `
+            <div class="single-status-banner active-step-ready" style="border-color: var(--success); background: rgba(16, 185, 129, 0.15); padding: 10px 14px; align-items: center; border-radius: 12px;">
+                <div class="status-icon-large" style="font-size: 1.4rem;">🎉</div>
+                <div class="status-info">
+                    <div class="status-title-main" style="color: var(--success); font-size: 1.05rem; font-weight: 700;">Masanıza Teslim Edildi</div>
                 </div>
             </div>
         `;
     }
 
-    // ÜRÜN DETAYLARI LİSTESİ
-    let detailsHTML = '';
-    const detaylar = state.currentOrder.detaylar || [];
-    detaylar.forEach(item => {
-        detailsHTML += `
-            <div class="order-item-row" style="padding: 6px 0;">
-                <div class="order-item-main" style="font-size: 0.95rem;">
-                    <span>${item.adet}x ${item.urun_adi}</span>
-                    <span>${(item.ara_toplam || (item.adet * item.birim_fiyat)).toFixed(2)} ₺</span>
+    // MASANIN TÜM ÜRÜNLERİNİ GRUPLAMA (Option 1 - Grouped Adisyon)
+    const groupedItemsMap = {};
+
+    orders.forEach((ord, index) => {
+        const orderTime = formatOrderTime(ord.olusturma_tarihi);
+        const isPaid = ord.odeme_durumu === 'odendi';
+        const detaylar = ord.detaylar || [];
+
+        detaylar.forEach(item => {
+            const key = item.urun_adi + '_' + (item.urun_notu || '');
+            if (!groupedItemsMap[key]) {
+                groupedItemsMap[key] = {
+                    urun_adi: item.urun_adi,
+                    total_adet: 0,
+                    birim_fiyat: item.birim_fiyat,
+                    total_tutar: 0,
+                    urun_notu: item.urun_notu || '',
+                    sublines: []
+                };
+            }
+            const group = groupedItemsMap[key];
+            group.total_adet += item.adet;
+            group.total_tutar += (item.ara_toplam || (item.adet * item.birim_fiyat));
+            group.sublines.push({
+                orderIndex: index + 1,
+                orderTime: orderTime,
+                adet: item.adet,
+                tutar: (item.ara_toplam || (item.adet * item.birim_fiyat)),
+                isPaid: isPaid
+            });
+        });
+    });
+
+    let ordersListHTML = '';
+    const groupKeys = Object.keys(groupedItemsMap);
+
+    groupKeys.forEach((key, idx) => {
+        const group = groupedItemsMap[key];
+        const isExpanded = expandedGroupDetailsMap[key] || false;
+
+        let sublinesHTML = '';
+        group.sublines.forEach(sub => {
+            sublinesHTML += `
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.78rem; padding: 3px 0; color:#cbd5e1; border-bottom: 1px dashed rgba(255,255,255,0.06);">
+                    <span>Sipariş ${sub.orderIndex} ${sub.orderTime ? `• ${sub.orderTime}` : ''} (${sub.adet}x)</span>
+                    <span>${sub.isPaid ? '<span style="color:#10b981; font-weight:700;">🟢 Ödendi</span>' : '<span style="color:#f59e0b; font-weight:700;">🟡 Kasada Ödenecek</span>'} • ${sub.tutar.toFixed(2)} ₺</span>
                 </div>
-                ${item.urun_notu ? `<div class="order-item-note" style="font-size: 0.78rem;">${item.urun_notu}</div>` : ''}
+            `;
+        });
+
+        ordersListHTML += `
+            <div style="padding: 8px 0; ${idx > 0 ? 'border-top: 1px dashed rgba(255,255,255,0.1);' : ''}">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <span style="font-weight: 800; font-size: 0.95rem; color: #fff;">${group.total_adet}x ${group.urun_adi}</span>
+                        ${group.urun_notu ? `<div style="font-size:0.75rem; color:#94a3b8;">Not: ${group.urun_notu}</div>` : ''}
+                    </div>
+                    <div style="display:flex; align-items:center; gap: 8px;">
+                        <span style="font-weight: 800; font-size: 0.95rem; color: #fbbf24;">${group.total_tutar.toFixed(2)} ₺</span>
+                        <button type="button" onclick="toggleGroupDetails('${key}')" style="background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.4); color: #a5b4fc; border-radius: 6px; padding: 2px 6px; font-size: 0.7rem; font-weight: 700; cursor: pointer;">
+                            ${isExpanded ? '▲ Gizle' : '🔍 Ayrıntılar'}
+                        </button>
+                    </div>
+                </div>
+
+                <div id="groupDetails_${key}" style="display: ${isExpanded ? 'block' : 'none'}; margin-top: 6px; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 6px 10px;">
+                    ${sublinesHTML}
+                </div>
             </div>
         `;
     });
 
-    const isPaid = state.currentOrder.odeme_durumu === 'odendi';
-    const paymentBadge = isPaid
-        ? `<span class="table-badge" style="background: var(--success); font-weight:800;">💳 Ödendi</span>`
-        : `<span class="table-badge" style="background: #f59e0b; color:#fff; font-weight:800;">🟡 ÖDEME KASADA YAPILACAK</span>`;
-
     let html = `
-        <div class="tracking-card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
-                <span style="font-size: 0.8rem; font-weight:800; color: var(--primary); letter-spacing: 0.5px;">🚀 CANLI SİPARİŞ DURUMU</span>
-                <span class="table-badge">🪑 ${state.masaNo}</span>
-            </div>
-            
+        <div class="tracking-card" style="padding-bottom: 8px;">
             ${currentStatusHTML}
 
-            <!-- VERİLEN SİPARİŞİN İÇERİĞİ -->
-            <div style="margin-top: 16px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;">
-                    <span style="font-size: 0.88rem; font-weight: 700; color: var(--text-primary);">📋 Sipariş Ettiğiniz Ürünler:</span>
-                    ${paymentBadge}
-                </div>
-                
-                <div style="max-height: 200px; overflow-y: auto;">
-                    ${detailsHTML}
+            <!-- MASANIN TÜM ADİSYON DÖKÜMÜ -->
+            <div style="margin-top: 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px;">
+                <div class="tracking-scroll-list" style="max-height: 230px;">
+                    ${ordersListHTML}
                 </div>
 
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px; font-weight: 800;">
-                    <span>Toplam Tutar:</span>
-                    <span style="color: #fbbf24; font-size: 1.15rem;">${(state.currentOrder.toplam_tutar || 0).toFixed(2)} ₺</span>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.12); padding-top: 10px; font-weight: 800;">
+                    <span style="font-size: 0.95rem;">Genel Adisyon Toplamı:</span>
+                    <span style="color: #10b981; font-size: 1.15rem;">${totalAdisyon.toFixed(2)} ₺</span>
                 </div>
+            </div>
+
+            <!-- KUTUCUKLARIN SAĞ ALTTAKİ KAPANIR OK BUTONU -->
+            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 6px; cursor: pointer;" onclick="toggleTrackingUI()">
+                <span style="font-size: 0.78rem; color: #94a3b8; font-weight: 700;">💡 Adisyonu küçültmek için tıklayın</span>
+                <span style="padding: 4px;" title="Adisyonu Gizle">
+                    ${chevronUpSVG}
+                </span>
             </div>
         </div>
     `;

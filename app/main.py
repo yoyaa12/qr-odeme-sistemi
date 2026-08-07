@@ -17,12 +17,9 @@ from app.core.image_loader import sync_product_images
 @app.on_event("startup")
 async def startup_db_updates():
     try:
-        execute_non_query("IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Kategoriler' AND COLUMN_NAME = 'gorsel_url') ALTER TABLE Kategoriler ADD gorsel_url NVARCHAR(255) NULL;")
-        execute_non_query("IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Masalar' AND COLUMN_NAME = 'totp_secret') ALTER TABLE Masalar ADD totp_secret VARCHAR(64) NULL;")
-        execute_non_query("IF NOT EXISTS (SELECT * FROM Masalar WHERE id=99) BEGIN SET IDENTITY_INSERT Masalar ON; INSERT INTO Masalar (id, masa_no, masa_durumu) VALUES (99, 'Developer Masası', 'musait'); SET IDENTITY_INSERT Masalar OFF; END")
         sync_product_images()
     except Exception as e:
-        print("Startup migration notice:", e)
+        print("Startup notice:", e)
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
