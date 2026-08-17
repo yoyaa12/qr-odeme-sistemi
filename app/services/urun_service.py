@@ -1,7 +1,7 @@
 from fastapi import Depends
 from typing import Optional, List
 from app.repositories.urun_repo import UrunRepository
-from app.schemas.schemas import UrunEkleModel, UrunGuncelleModel, UrunResponse
+from app.schemas.catalog import UrunEkleModel, UrunGuncelleModel, UrunResponse
 from app.database import db_transaction
 
 class UrunService:

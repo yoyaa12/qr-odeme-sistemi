@@ -1,164 +1,68 @@
-from pydantic import BaseModel
-from typing import List, Optional
+"""Compatibility exports for code that still imports the former schema module."""
 
-class SiparisItemModel(BaseModel):
-    urun_id: int
-    adet: int
-    birim_fiyat: float
-    urun_notu: Optional[str] = ""
+from app.schemas.auth import (
+    BanDeviceModel,
+    GarsonPinResponse,
+    GarsonPinVerifyModel,
+    GarsonResponse,
+    KullaniciResponse,
+    LoginModel,
+    LoginResponse,
+)
+from app.schemas.catalog import (
+    KategoriEkleModel,
+    KategoriResponse,
+    UrunEkleModel,
+    UrunGuncelleModel,
+    UrunResponse,
+)
+from app.schemas.common import AdminIslemResponse, GenelBasariliResponse
+from app.schemas.orders import (
+    DurumGuncelleModel,
+    SiparisDetayResponse,
+    SiparisDurumIslemCevapModel,
+    SiparisDurumResponse,
+    SiparisIslemCevapModel,
+    SiparisItemModel,
+    SiparisOlusturModel,
+    SiparisDuzenleModel,
+    SiparisResponse,
+)
+from app.schemas.tables import (
+    MasaEkleModel,
+    MasaResponse,
+    MoveMasaModel,
+    QRDogrulamaResponse,
+    VerifyQRModel,
+)
 
-class SiparisOlusturModel(BaseModel):
-    masa_id: int
-    toplam_tutar: float
-    odeme_yontemi: Optional[str] = "pos" # pos veya nakit
-    urunler: List[SiparisItemModel]
-    device_id: Optional[str] = None
-    current_totp_token: Optional[str] = None
-
-class SiparisDuzenleModel(BaseModel):
-    toplam_tutar: float
-    urunler: List[SiparisItemModel]
-    garson_adi: Optional[str] = None
-
-class DurumGuncelleModel(BaseModel):
-    yeni_durum: str
-    garson_adi: Optional[str] = None
-    pin_code: Optional[str] = None
-
-class GarsonPinVerifyModel(BaseModel):
-    pin_code: str
-
-class LoginModel(BaseModel):
-    kullanici_adi: str
-    sifre: str
-
-class UrunEkleModel(BaseModel):
-    kategori_id: int
-    urun_adi: str
-    aciklama: Optional[str] = ""
-    fiyat: float
-    gorsel_url: Optional[str] = ""
-    stok_miktari: Optional[int] = 100
-
-class UrunGuncelleModel(BaseModel):
-    urun_adi: Optional[str] = None
-    fiyat: Optional[float] = None
-    aciklama: Optional[str] = None
-    stok_miktari: Optional[int] = None
-
-class KategoriEkleModel(BaseModel):
-    kategori_adi: str
-
-class MasaEkleModel(BaseModel):
-    masa_no: str
-
-class SiparisDetayResponse(BaseModel):
-    urun_id: int
-    urun_adi: str
-    adet: int
-    birim_fiyat: float
-    urun_notu: str
-    ara_toplam: float
-
-class SiparisResponse(BaseModel):
-    id: int
-    masa_id: int
-    masa_no: str
-    siparis_kodu: str
-    toplam_tutar: float
-    odeme_yontemi: Optional[str] = None
-    odeme_durumu: str
-    siparis_durumu: str
-    olusturma_tarihi: Optional[str] = None
-    garson_adi: Optional[str] = None
-    device_id: Optional[str] = None
-    detaylar: List[SiparisDetayResponse] = []
-
-class SiparisDurumResponse(BaseModel):
-    siparis_id: int
-    masa_id: int
-    masa_no: str
-    yeni_durum: str
-    odeme_durumu: str
-    garson_adi: Optional[str] = None
-    guncelleme_tarihi: str
-    siparis: SiparisResponse
-
-class UrunResponse(BaseModel):
-    id: int
-    kategori_id: int
-    kategori_adi: Optional[str] = None
-    urun_adi: str
-    aciklama: Optional[str] = None
-    fiyat: float
-    gorsel_url: Optional[str] = None
-    stok_miktari: int
-
-class KategoriResponse(BaseModel):
-    id: int
-    kategori_adi: str
-    gorsel_url: Optional[str] = None
-
-class MasaResponse(BaseModel):
-    id: int
-    masa_no: str
-    durum: str
-    secim_durumu: Optional[dict] = None
-
-class GarsonResponse(BaseModel):
-    id: int
-    ad_soyad: str
-
-class BanDeviceModel(BaseModel):
-    device_id: str
-
-class KullaniciResponse(BaseModel):
-    id: int
-    kullanici_adi: Optional[str] = None
-    garson_adi: Optional[str] = None
-    rol: Optional[str] = None
-
-class SiparisIslemCevapModel(BaseModel):
-    status: str
-    message: str
-    siparis: SiparisResponse
-
-class SiparisDurumIslemCevapModel(BaseModel):
-    status: str
-    message: str
-    data: SiparisDurumResponse
-
-# --- Endpoint inline modelleri (masalar.py'den taşındı) ---
-
-class MoveMasaModel(BaseModel):
-    from_masa_id: int
-    to_masa_id: int
-
-class VerifyQRModel(BaseModel):
-    token: str
-    device_id: Optional[str] = None
-
-# --- Genel Response DTO'ları ---
-
-class LoginResponse(BaseModel):
-    status: str
-    user: KullaniciResponse
-
-class GarsonPinResponse(BaseModel):
-    status: str
-    garson: KullaniciResponse
-
-class AdminIslemResponse(BaseModel):
-    status: str
-    message: Optional[str] = None
-    id: Optional[int] = None
-
-class QRDogrulamaResponse(BaseModel):
-    valid: bool
-    message: str
-    masa_id: Optional[int] = None
-
-class GenelBasariliResponse(BaseModel):
-    status: str
-    message: str
-
+__all__ = [
+    "AdminIslemResponse",
+    "BanDeviceModel",
+    "DurumGuncelleModel",
+    "GarsonPinResponse",
+    "GarsonPinVerifyModel",
+    "GarsonResponse",
+    "GenelBasariliResponse",
+    "KategoriEkleModel",
+    "KategoriResponse",
+    "KullaniciResponse",
+    "LoginModel",
+    "LoginResponse",
+    "MasaEkleModel",
+    "MasaResponse",
+    "MoveMasaModel",
+    "QRDogrulamaResponse",
+    "SiparisDetayResponse",
+    "SiparisDurumIslemCevapModel",
+    "SiparisDurumResponse",
+    "SiparisIslemCevapModel",
+    "SiparisItemModel",
+    "SiparisOlusturModel",
+    "SiparisDuzenleModel",
+    "SiparisResponse",
+    "UrunEkleModel",
+    "UrunGuncelleModel",
+    "UrunResponse",
+    "VerifyQRModel",
+]

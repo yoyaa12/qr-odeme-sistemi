@@ -183,29 +183,34 @@
     <div id="cartModal" class="modal-overlay">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>🛒 Sepetiniz</h3>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <h3>🛒 Sepetiniz</h3>
+                    <button type="button" onclick="clearCartConfirm()" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.35); color: #ef4444; padding: 4px 10px; border-radius: var(--radius-sm); font-size: 0.8rem; font-weight: 700; cursor: pointer; user-select: none; touch-action: manipulation;">
+                        🗑️ Sepeti Temizle
+                    </button>
+                </div>
                 <button class="modal-close" onclick="closeModal('cartModal')">✖</button>
             </div>
 
-            <div id="cartItemsContainer" style="max-height: 280px; overflow-y: auto; margin-bottom: 20px;"></div>
+            <div id="cartItemsContainer" style="max-height: 280px; overflow-y: auto; margin-bottom: 12px;"></div>
 
             <div
-                style="display:flex; justify-content:space-between; align-items:center; border-top: 1px solid var(--border-color); padding-top: 16px; margin-bottom: 20px;">
+                style="display:flex; justify-content:space-between; align-items:center; border-top: 1px solid var(--border-color); padding-top: 12px; margin-bottom: 16px;">
                 <span style="font-size: 1.1rem; font-weight: 700;">Toplam Tutar:</span>
                 <span id="modalCartTotal" style="font-size: 1.4rem; font-weight: 800; color: #fbbf24;">0.00 ₺</span>
             </div>
 
             <!-- ÖDEME YÖNTEMİ SEÇENEKLERİ -->
-            <div style="display:flex; flex-direction:column; gap: 12px;">
+            <div style="display:flex; flex-direction:column; gap: 10px;">
                 <button class="btn-add"
-                    style="justify-content: center; padding: 14px; font-size: 0.95rem; background: linear-gradient(135deg, var(--primary), #d97706);"
+                    style="justify-content: center; padding: 14px; font-size: 0.95rem; background: linear-gradient(135deg, var(--primary), #d97706); box-shadow: none !important;"
                     onclick="openPaymentCheckout('pos')">
-                    💳 Kayıtlı Kartlarım İle Hızlı Öde (Anında Mutfağa)
+                    💳 Kart ile Ödeme
                 </button>
                 <button class="btn-add"
-                    style="justify-content: center; padding: 14px; font-size: 0.95rem; background: linear-gradient(135deg, #3b82f6, #1d4ed8);"
+                    style="justify-content: center; padding: 14px; font-size: 0.95rem; background: linear-gradient(135deg, #3b82f6, #1d4ed8); box-shadow: none !important;"
                     onclick="openPaymentCheckout('garson_kasada')">
-                    🛎️ Garson Onayı İle Sipariş Ver (Yedikten Sonra Kasada Öde)
+                    🔔 Garson Onaylı Sipariş Ver
                 </button>
             </div>
         </div>
@@ -286,6 +291,25 @@
         </div>
     </div>
 
+    <!-- 4. ÖZEL UYGULAMA İÇİ ONAY MODALİ (NATIVE CONFIRM REPLACEMENT) -->
+    <div id="customConfirmModal" class="modal-overlay" style="z-index: 10000;">
+        <div class="modal-content" style="max-width: 360px; text-align: center; padding: 22px; border-top: 4px solid var(--danger);">
+            <div style="font-size: 2.8rem; margin-bottom: 8px;">🗑️</div>
+            <h3 id="customConfirmTitle" style="font-size: 1.25rem; font-weight: 800; color: #fff; margin-bottom: 8px;">Sepeti Temizle</h3>
+            <p id="customConfirmMessage" style="color: var(--text-secondary); font-size: 0.92rem; line-height: 1.5; margin-bottom: 20px;">
+                Seçili tüm ürünler sepetten kaldırılacaktır, onaylıyor musunuz?
+            </p>
+            <div style="display: flex; gap: 10px;">
+                <button type="button" onclick="closeModal('customConfirmModal')" style="flex: 1; padding: 12px; border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.1); border: 1px solid var(--border-color); color: #fff; font-weight: 700; font-size: 0.95rem; cursor: pointer; user-select: none; touch-action: manipulation;">
+                    İptal
+                </button>
+                <button type="button" id="btnCustomConfirmAction" style="flex: 1; padding: 12px; border-radius: var(--radius-md); background: var(--danger); border: none; color: #fff; font-weight: 800; font-size: 0.95rem; cursor: pointer; user-select: none; touch-action: manipulation;">
+                    Evet, Temizle
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- İLK SİPARİŞ GÜVENLİK PIN MODALİ -->
     <div id="firstOrderPINModal" class="modal-overlay">
         <div class="modal-content" style="text-align: center; border-top: 4px solid var(--primary);">
@@ -295,7 +319,7 @@
                 İlk siparişinizi mutfağa iletebilmemiz için masadaki ekranın altında yazan <strong>6 haneli güvenlik kodunu</strong> giriniz.
             </p>
             
-            <input type="number" id="securityPinInput" placeholder="Örn: 123456" 
+            <input type="number" id="securityPinInput" placeholder="6 haneli kod"
                 style="width: 100%; padding: 14px; font-size: 1.5rem; text-align: center; letter-spacing: 4px; font-weight: 800; background: rgba(0,0,0,0.2); border: 2px solid rgba(255,255,255,0.1); border-radius: 12px; color: #fff; margin-bottom: 15px; outline: none;">
             
             <button class="btn-add" style="width: 100%; justify-content: center; padding: 14px; font-size: 1.1rem; background: linear-gradient(135deg, var(--primary), #d97706); margin-bottom: 10px;" onclick="submitFirstOrderPIN()">
@@ -317,7 +341,9 @@
         </div>
     </div>
 
-    <script src="/static/js/rulet.js?v=1"></script>
-    <script src="/static/js/app.js?v=67"></script>
+    <script src="/static/js/rulet.js?v=2"></script>
+    <script src="/static/js/security.js?v=1"></script>
+    <script src="/static/js/ui_confirm.js?v=2"></script>
+    <script src="/static/js/app.js?v=83"></script>
 </body>
 </html>

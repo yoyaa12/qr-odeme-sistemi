@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from typing import Optional, List
-from app.schemas.schemas import UrunResponse
+from app.schemas.catalog import UrunResponse
 from app.services.urun_service import UrunService
 
 router = APIRouter()

@@ -1,16 +1,28 @@
-# Environment & Credentials (HASSAS BİLGİLER VE AYARLAR)
+# ==========================================================
+# Ortam değişkenleri ve kimlik bilgileri (HASSAS)
+# ==========================================================
+# ".env" tek başına yalnızca tam adı ".env" olan dosyayı eşler.
+# ".env.*" satırı .env.local / .env.production gibi türevleri de kapsar.
 .env
-*.env
+.env.*
+!.env.example
 *.pem
 *.key
+*.crt
+*.cer
+*.pfx
+*.p12
+secrets.json
+# generate_staff_pin_delivery.py çıktısı repo dışına yazar; yine de güvenlik ağı:
+staff-pin-delivery*.json
 
-# Python Bytecode & Cache
+# ==========================================================
+# Python
+# ==========================================================
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-
-# Python Virtual Environments (Sanal Ortamlar)
 .venv/
 venv/
 env/
@@ -18,30 +30,75 @@ ENV/
 build/
 dist/
 *.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
 
-# IDE & Editor Settings (Editör Ayarları)
+# ==========================================================
+# Node (tests/frontend/*.cjs node:test ile çalışır)
+# ==========================================================
+node_modules/
+npm-debug.log*
+
+# ==========================================================
+# Veritabanı dosyaları, dökümler ve yedekler
+# ==========================================================
+*.mdf
+*.ldf
+*.bak
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+
+# ==========================================================
+# IDE / editör ayarları
+# ==========================================================
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# Logs & Temporary Files (Loglar ve Geçici Dosyalar)
+# ==========================================================
+# Loglar ve geçici dosyalar
+# ==========================================================
+# NOT: Eskiden burada "*.txt" vardı. Bu kural requirements.txt ve
+# LICENSE.txt gibi gerekli dosyaları da sessizce yok saydığı için
+# kaldırıldı; yerine hedefli kurallar kullanılıyor.
 *.log
 tmp/
 scratch/
+temp_*.py
+dump_out.txt
+db_dump.txt
+db_error.txt
+schema_out.txt
+*_report.txt
 
-# OS Generated Files (İşletim Sistemi Dosyaları)
+# ==========================================================
+# İşletim sistemi dosyaları
+# ==========================================================
 .DS_Store
 Thumbs.db
+desktop.ini
 
-#
-scripts/
-*.txt
-temp_*.py
-check_git_leaks.py
-move_tools.py
-git_leak_report.txt
-AGENTS.md
-.agents/
+# ==========================================================
+# NOT: AGENTS.md, .agents/ ve docs/ bilinçli olarak takip edilir.
+# AGENTS.md §1 ve §6 bu dosyaları "chat hafızasından daha kalıcı proje
+# hafızası" olarak tanımlar; ignore edilirlerse yeni bir oturum nerede
+# kalındığını okuyamaz. Bu yüzden burada listelenmezler.
+# ==========================================================
 
-
+# ==========================================================
+# scripts/ : varsayılan olarak yok sayılır.
+# Sır içermeyen, incelenmeye açık araçlar tek tek beyaz listeye alınır;
+# böylece kimlik bilgisi taşıyan yardımcı dosyalar takip edilemez.
+# ==========================================================
+scripts/*
+!scripts/generate_staff_pin_delivery.py
+!scripts/migrate_staff_credentials.py
+!scripts/staff_migration_db.py
+!scripts/update_staff_credential.sql

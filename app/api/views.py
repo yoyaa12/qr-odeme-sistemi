@@ -1,6 +1,6 @@
 import os
 from fastapi import APIRouter
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 router = APIRouter()
 
@@ -14,8 +14,6 @@ def get_html_content(filename: str):
 @router.get("/", response_class=HTMLResponse)
 async def home_page():
     return get_html_content("index.html")
-
-from fastapi.responses import HTMLResponse, RedirectResponse
 
 @router.get("/m/{masa_id}")
 async def masa_qr_redirect(masa_id: int, token: str = None):

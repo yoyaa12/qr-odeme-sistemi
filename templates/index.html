@@ -107,15 +107,9 @@
             if ((window.location.hostname === '192.168.1.100' || window.location.host === '192.168.1.100:8000') && masaId === 1) {
                 masaId = 99;
             }
-            try {
-                const res = await fetch(`/api/masalar/${masaId}/dynamic-qr`);
-                const data = await res.json();
-                if (data && data.qr_url) {
-                    window.location.href = data.qr_url;
-                    return;
-                }
-            } catch(e) {}
-                window.location.href = `/menu?masa=${masaId}`;
+            // The public landing page may preview the menu, but it must never
+            // mint a current physical-presence token for an arbitrary table.
+            window.location.href = `/menu?masa=${masaId}`;
         }
     </script>
 </body>

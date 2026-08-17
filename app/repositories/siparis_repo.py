@@ -1,6 +1,7 @@
 from typing import Optional, List, Dict
 from fastapi import Depends
 from app.database import DatabaseSession, get_db
+from app.enums import OrderStatus, PaymentStatus
 
 class SiparisRepository:
     def __init__(self, db: DatabaseSession = Depends(get_db)):
@@ -44,25 +45,18 @@ class SiparisRepository:
         query = "SELECT sd.*, u.urun_adi FROM SiparisDetaylari sd JOIN Urunler u ON sd.urun_id = u.id WHERE sd.siparis_id = ?"
         return self.db.execute_query(query, (siparis_id,)) or []
 
-    def get_active_by_masa_id(self, masa_id: int):
-        query = """
-            SELECT TOP 1 s.*, m.masa_no 
-            FROM Siparisler s 
-            JOIN Masalar m ON s.masa_id = m.id 
-            WHERE s.masa_id = ? AND s.siparis_durumu != 'teslim_edildi' 
-            ORDER BY s.id DESC
-        """
-        return self.db.execute_query(query, (masa_id,), fetch_one=True)
-
     def get_all_active_by_masa_id(self, masa_id: int):
         query = """
             SELECT s.*, m.masa_no 
             FROM Siparisler s 
             JOIN Masalar m ON s.masa_id = m.id 
-            WHERE s.masa_id = ? AND s.siparis_durumu NOT IN ('iptal', 'odendi_kapatildi')
+            WHERE s.masa_id = ? AND s.siparis_durumu NOT IN (?, ?)
             ORDER BY s.id ASC
         """
-        return self.db.execute_query(query, (masa_id,)) or []
+        return self.db.execute_query(
+            query,
+            (masa_id, OrderStatus.CANCELLED.value, OrderStatus.PAID_CLOSED.value),
+        ) or []
 
     def update_durum(self, siparis_id: int, yeni_durum: str, garson_adi: Optional[str] = None):
         if garson_adi:
@@ -89,34 +83,104 @@ class SiparisRepository:
             )
 
     def get_active_count_for_masa(self, masa_id: int) -> int:
-        query = "SELECT COUNT(*) as cnt FROM Siparisler WHERE masa_id = ? AND siparis_durumu IN ('nakit_bekliyor', 'odendi_mutfakta', 'hazirlaniyor', 'hazir', 'garson_onayi_bekliyor', 'garson_onayladi_mutfakta')"
-        res = self.db.execute_query(query, (masa_id,), fetch_one=True)
+        active_statuses = (
+            OrderStatus.CASH_PENDING.value,
+            OrderStatus.PAID_IN_KITCHEN.value,
+            OrderStatus.PREPARING.value,
+            OrderStatus.READY.value,
+            OrderStatus.WAITER_APPROVAL_PENDING.value,
+            OrderStatus.WAITER_APPROVED_IN_KITCHEN.value,
+        )
+        placeholders = ", ".join("?" for _ in active_statuses)
+        query = f"SELECT COUNT(*) as cnt FROM Siparisler WHERE masa_id = ? AND siparis_durumu IN ({placeholders})"
+        res = self.db.execute_query(query, (masa_id, *active_statuses), fetch_one=True)
         return res['cnt'] if res else 0
 
     def get_unpaid_count_for_masa(self, masa_id: int) -> int:
-        query = "SELECT COUNT(*) as cnt FROM Siparisler WHERE masa_id = ? AND odeme_durumu != 'odendi' AND siparis_durumu NOT IN ('iptal', 'odendi_kapatildi')"
-        res = self.db.execute_query(query, (masa_id,), fetch_one=True)
+        query = "SELECT COUNT(*) as cnt FROM Siparisler WHERE masa_id = ? AND odeme_durumu != ? AND siparis_durumu NOT IN (?, ?)"
+        res = self.db.execute_query(
+            query,
+            (
+                masa_id,
+                PaymentStatus.PAID.value,
+                OrderStatus.CANCELLED.value,
+                OrderStatus.PAID_CLOSED.value,
+            ),
+            fetch_one=True,
+        )
         return res['cnt'] if res else 0
 
     def clear_active_orders_for_masa(self, masa_id: int):
-        query = "UPDATE Siparisler SET siparis_durumu = 'odendi_kapatildi', odeme_durumu = 'odendi' WHERE masa_id = ? AND siparis_durumu NOT IN ('iptal', 'odendi_kapatildi')"
-        self.db.execute_non_query(query, (masa_id,))
+        query = "UPDATE Siparisler SET siparis_durumu = ?, odeme_durumu = ? WHERE masa_id = ? AND siparis_durumu NOT IN (?, ?)"
+        self.db.execute_non_query(
+            query,
+            (
+                OrderStatus.PAID_CLOSED.value,
+                PaymentStatus.PAID.value,
+                masa_id,
+                OrderStatus.CANCELLED.value,
+                OrderStatus.PAID_CLOSED.value,
+            ),
+        )
 
-    def update_siparis_items(self, siparis_id: int, toplam_tutar: float, urunler: list, garson_adi: Optional[str] = None):
+    def replace_siparis_items(
+        self,
+        siparis_id: int,
+        toplam_tutar: float,
+        priced_items: List[Dict],
+        garson_adi: Optional[str] = None,
+    ):
+        """Replace an order's lines with server-priced ones.
+
+        ``priced_items`` carries unit prices and line totals already computed by
+        the service against the product catalogue. The repository deliberately
+        accepts no request model, so a client-supplied price cannot reach the
+        database through this path.
+        """
         if garson_adi:
             self.db.execute_non_query("UPDATE Siparisler SET toplam_tutar = ?, garson_adi = ? WHERE id = ?", (toplam_tutar, garson_adi, siparis_id))
         else:
             self.db.execute_non_query("UPDATE Siparisler SET toplam_tutar = ? WHERE id = ?", (toplam_tutar, siparis_id))
-        
+
         self.db.execute_non_query("DELETE FROM SiparisDetaylari WHERE siparis_id = ?", (siparis_id,))
-        for item in urunler:
-            ara_toplam = item.adet * item.birim_fiyat
-            self.create_siparis_detay(siparis_id, item.urun_id, item.adet, item.birim_fiyat, item.urun_notu or "", ara_toplam)
+        for line in priced_items:
+            self.create_siparis_detay(
+                siparis_id,
+                line["urun_id"],
+                line["adet"],
+                line["birim_fiyat"],
+                line.get("urun_notu") or "",
+                line["ara_toplam"],
+            )
 
     def move_orders_between_masalar(self, from_masa_id: int, to_masa_id: int):
         query = """
             UPDATE Siparisler 
             SET masa_id = ? 
-            WHERE masa_id = ? AND siparis_durumu NOT IN ('iptal', 'odendi_kapatildi')
+            WHERE masa_id = ? AND siparis_durumu NOT IN (?, ?)
         """
-        self.db.execute_non_query(query, (to_masa_id, from_masa_id))
+        self.db.execute_non_query(
+            query,
+            (
+                to_masa_id,
+                from_masa_id,
+                OrderStatus.CANCELLED.value,
+                OrderStatus.PAID_CLOSED.value,
+            ),
+        )
+
+    def add_masa_tahsilat(self, masa_id: int, tutar: float, odeme_yontemi: str):
+        query = """
+            INSERT INTO MasaTahsilatlari (masa_id, tutar, odeme_yontemi, is_closed)
+            VALUES (?, ?, ?, 0)
+        """
+        self.db.execute_non_query(query, (masa_id, tutar, odeme_yontemi))
+
+    def get_masa_tahsilat_toplami(self, masa_id: int) -> float:
+        query = "SELECT SUM(tutar) as toplam FROM MasaTahsilatlari WHERE masa_id = ? AND is_closed = 0"
+        res = self.db.execute_query(query, (masa_id,), fetch_one=True)
+        return float(res['toplam']) if res and res['toplam'] else 0.0
+
+    def close_tahsilatlar_for_masa(self, masa_id: int):
+        query = "UPDATE MasaTahsilatlari SET is_closed = 1 WHERE masa_id = ? AND is_closed = 0"
+        self.db.execute_non_query(query, (masa_id,))

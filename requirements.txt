@@ -1,0 +1,17 @@
+# Çalışma zamanı bağımlılıkları — Python 3.11+
+# Kurulum: pip install -r requirements.txt
+#
+# Testler yalnızca standart kütüphaneyi kullanır (Python: unittest,
+# frontend: node:test), bu yüzden ek test bağımlılığı yoktur.
+
+fastapi==0.139.2
+uvicorn==0.51.0
+python-socketio==5.16.3
+pydantic==2.13.4
+python-dotenv==1.2.2
+
+# MS SQL Server bağlantısı.
+# Önce pyodbc denenir (Microsoft ODBC Driver 17/18 for SQL Server gerekir),
+# uygun ODBC sürücüsü bulunamazsa pymssql'e düşülür. Bkz. app/database.py
+pyodbc==5.3.0
+pymssql==2.3.13

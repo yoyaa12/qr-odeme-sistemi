@@ -34,7 +34,16 @@
     --radius-full: 9999px;
 
     --shadow-glass: 0 10px 35px 0 rgba(0, 0, 0, 0.5);
-    --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    /* AGENTS.md 27: 'transition: all' yasak. Yalnizca gercekten animasyon
+       yapilan property'ler listelenir; boylece tarayici her frame'de tum
+       hesaplanmis stilleri karsilastirmak zorunda kalmaz. */
+    --transition-props: transform, opacity, background-color, border-color, color, box-shadow;
+    --transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                  opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                  background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                  border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                  color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                  box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* RESET & BODY BASE */
@@ -45,6 +54,13 @@
     font-family: 'Plus Jakarta Sans', sans-serif;
     scrollbar-width: none;
     -ms-overflow-style: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+button, a, .product-card, .category-card-box, .btn-add-circle, .btn-qty-step, .modal-close, .modal-overlay, .size-option-card {
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 ::-webkit-scrollbar {
@@ -69,14 +85,16 @@ input[type=number] {
 
 html,
 body {
-    overscroll-behavior-y: contain;
-    touch-action: pan-x pan-y;
+    overflow-y: auto;
+    overscroll-behavior-y: auto;
+    touch-action: auto;
 }
 
 body {
     background-color: var(--bg-main);
     color: var(--text-primary);
     min-height: 100vh;
+    height: auto;
     display: flex;
     flex-direction: column;
 }
@@ -526,6 +544,7 @@ textarea:focus {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-shrink: 0;
 }
 
 .quantity-counter-box {
@@ -536,6 +555,8 @@ textarea:focus {
     border: 1px solid var(--primary);
     border-radius: 10px;
     padding: 2px 4px;
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .btn-qty-step {
@@ -1031,7 +1052,8 @@ textarea:focus {
     padding: 16px 20px;
     box-shadow: var(--shadow-glass);
     margin-bottom: 20px;
-    backdrop-filter: blur(12px);
+    /* AGENTS.md 27: backdrop-filter mobil GPU'da agir. Yuksek opaklikli
+       duz arka plan ayni okunabilirligi repaint maliyeti olmadan verir. */
     transition: var(--transition);
 }
 
@@ -1397,7 +1419,7 @@ textarea:focus {
     font-size: 1.4rem;
     font-weight: 800;
     color: var(--primary);
-    transition: all 0.15s ease-in-out;
+    transition: transform 0.15s ease-in-out, opacity 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
 
 .pin-slot.filled {
@@ -1540,7 +1562,7 @@ textarea:focus {
     font-size: 0.78rem;
     color: #cbd5e1;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: transform 0.15s ease, opacity 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
     user-select: none;
 }
 
@@ -1650,7 +1672,7 @@ textarea:focus {
     color: #94a3b8;
     cursor: pointer;
     text-align: center;
-    transition: all 0.15s ease;
+    transition: transform 0.15s ease, opacity 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .vega-filter-btn.active {
@@ -1738,7 +1760,7 @@ textarea:focus {
     border-radius: 12px;
     padding: 10px 8px;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: transform 0.15s ease, opacity 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -2021,7 +2043,7 @@ textarea:focus {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    transition: all 0.15s ease;
+    transition: transform 0.15s ease, opacity 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
     box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
     flex-shrink: 0;
 }
@@ -2065,7 +2087,7 @@ textarea:focus {
     font-size: 0.82rem;
     font-weight: 900;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: transform 0.15s ease, opacity 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
     box-shadow: 0 2px 8px rgba(6, 182, 212, 0.4);
 }
 
@@ -2116,7 +2138,7 @@ textarea:focus {
     align-items: center;
     justify-content: center;
     gap: 4px;
-    transition: all 0.15s ease;
+    transition: transform 0.15s ease, opacity 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
     user-select: none;
 }
 
@@ -2204,7 +2226,7 @@ textarea:focus {
     font-size: 0.75rem;
     font-weight: 700;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: transform 0.15s ease, opacity 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .shortcut-chip:hover {
@@ -2275,7 +2297,7 @@ textarea:focus {
 /* ==========================================================================
    KASA / POS EKRAAN KİLİTLEME & DÜZEN KAYMALARINI ÖNLEME STİLLERİ
    ========================================================================== */
-html,
+html.vega-kasa-body,
 body.vega-kasa-body {
     height: 100vh !important;
     max-height: 100vh !important;
@@ -2483,7 +2505,7 @@ body.vega-kasa-body {
     font-size: 0.75rem;
     font-weight: 700;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: transform 0.15s ease, opacity 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .shortcut-chip:hover {
@@ -2848,5 +2870,42 @@ body.vega-kasa-body {
     100% {
         transform: scale(1);
         opacity: 1;
+    }
+}
+
+/* ÖZEL MATTE DARK LÜKS TOAST BİLDİRİMİ (SARI RENK VE HEADER KAPATMA ENGELENDİ) */
+/* ÖZEL MATTE DARK LÜKS TOAST BİLDİRİMİ (PERFEKT EKRAN ORTALAMA VE GEOMETRİ DÜZELTMESİ) */
+.toast-notification {
+    position: fixed;
+    top: 75px;
+    left: 0;
+    right: 0;
+    margin: 0 auto;
+    width: fit-content;
+    max-width: 88vw;
+    background: #0f172a;
+    border: 1px solid rgba(239, 68, 68, 0.6);
+    color: #fca5a5;
+    padding: 8px 18px;
+    border-radius: 100px;
+    font-weight: 800;
+    font-size: 0.82rem;
+    z-index: 999999;
+    white-space: nowrap;
+    text-align: center;
+    pointer-events: none;
+    user-select: none;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
+    animation: toastPopUp 0.2s ease-out;
+}
+
+@keyframes toastPopUp {
+    0% {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.95);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
     }
 }

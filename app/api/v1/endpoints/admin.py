@@ -1,13 +1,16 @@
 from fastapi import APIRouter, Depends
+from app.auth.dependencies import require_roles
+from app.enums import UserRole
 from app.services.urun_service import UrunService
 from app.services.kategori_service import KategoriService
 from app.services.masa_service import MasaService
-from app.schemas.schemas import (
-    UrunEkleModel, UrunGuncelleModel, KategoriEkleModel, MasaEkleModel,
-    AdminIslemResponse
-)
+from app.schemas.catalog import KategoriEkleModel, UrunEkleModel, UrunGuncelleModel
+from app.schemas.common import AdminIslemResponse
+from app.schemas.tables import MasaEkleModel
 
-router = APIRouter()
+router = APIRouter(
+    dependencies=[Depends(require_roles(UserRole.ADMIN))],
+)
 
 @router.post("/admin/urunler", response_model=AdminIslemResponse)
 async def add_urun(data: UrunEkleModel, service: UrunService = Depends()):

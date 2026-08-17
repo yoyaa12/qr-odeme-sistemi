@@ -1,7 +1,15 @@
-from fastapi import Depends
+import hashlib
 from typing import List, Optional
+
+from fastapi import Depends, HTTPException, status
+
+from app.auth.rate_limit import ProcessLocalLoginRateLimiter, qr_verify_limiter
+from app.repositories.auth_repo import AuthRepository
 from app.repositories.masa_repo import MasaRepository
-from app.schemas.schemas import MasaEkleModel, MasaResponse, QRDogrulamaResponse
+from app.repositories.siparis_repo import SiparisRepository
+from app.services.auth_service import AuthService
+from app.services.siparis_service import TABLE_MOVES_MAP
+from app.schemas.tables import MasaEkleModel, MasaResponse, QRDogrulamaResponse
 from app.database import db_transaction
 from app.core.totp_service import generate_secret_key, generate_dynamic_token, get_seconds_remaining, verify_dynamic_token
 from app.core.socket_manager import get_browsing_tables
@@ -82,59 +90,83 @@ class MasaService:
             }
         return result
 
-    def verify_dynamic_qr_token(self, masa_id: int, token: str) -> bool:
+    def verify_dynamic_qr_token(self, masa_id: int, token: str, mark_as_used: bool = False) -> bool:
         masa = self.repo.get_by_id(masa_id)
         if not masa:
             return False
             
         totp_secret = masa.get("totp_secret")
-        if totp_secret and verify_dynamic_token(masa_id, totp_secret, token):
+        if totp_secret and verify_dynamic_token(masa_id, totp_secret, token, mark_as_used=mark_as_used):
             return True
 
-        from app.services.siparis_service import TABLE_MOVES_MAP
         for from_id, to_id in TABLE_MOVES_MAP.items():
             if to_id == masa_id:
                 from_masa = self.repo.get_by_id(from_id)
                 if from_masa and from_masa.get("totp_secret"):
-                    if verify_dynamic_token(from_id, from_masa.get("totp_secret"), token):
+                    if verify_dynamic_token(from_id, from_masa.get("totp_secret"), token, mark_as_used=mark_as_used):
                         return True
         return False
 
-    def verify_dynamic_qr_with_device(self, masa_id: int, token: str, device_id: Optional[str] = None) -> QRDogrulamaResponse:
+    def _issue_customer_session(self, masa_id: int, device_id: Optional[str]) -> str:
+        auth_repo = AuthRepository(db=self.repo.db)
+        return AuthService(repo=auth_repo).create_customer_session(masa_id, device_id)
+
+    def verify_dynamic_qr_with_device(
+        self,
+        masa_id: int,
+        token: str,
+        device_id: Optional[str] = None,
+        *,
+        client_host: str = "unknown",
+        limiter: ProcessLocalLoginRateLimiter = qr_verify_limiter,
+    ) -> QRDogrulamaResponse:
         """
         Müşteri QR okuttuğunda cihaz + TOTP birleşik doğrulaması yapar.
         1. Cihaz masada kayıtlıysa (DOLU masa) → doğrudan geçir
         2. Değilse → normal TOTP doğrulaması yap
+
+        Kimlik doğrulaması gerektirmediği için her başarısız deneme kaynak IP ve
+        masa bazlı sayaçlara işlenir; eşiği aşan istekler 429 alır.
         """
+        rate_keys = (
+            f"qr-verify-ip:{hashlib.sha256(client_host.encode('utf-8', 'replace')).hexdigest()}",
+            f"qr-verify-masa:{masa_id}",
+        )
+        decision = limiter.check(rate_keys)
+        if not decision.allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Çok fazla başarısız QR doğrulama denemesi. Lütfen biraz sonra tekrar deneyin.",
+                headers={"Retry-After": str(decision.retry_after_seconds)},
+            )
+
         # 1. Cihaz masada zaten kayıtlı mı?
         if device_id:
-            from app.services.siparis_service import SiparisService
-            from app.repositories.siparis_repo import SiparisRepository
-            from app.repositories.urun_repo import UrunRepository
-            from app.repositories.auth_repo import AuthRepository
-            
             siparis_repo = SiparisRepository(db=self.repo.db)
             aktif_siparisler = siparis_repo.get_all_active_by_masa_id(masa_id)
-            
+
             if aktif_siparisler:
                 if any(s.get('device_id') == device_id for s in aktif_siparisler):
+                    limiter.record_success(rate_keys)
                     return QRDogrulamaResponse(
                         valid=True,
                         message="Cihazınız masada kayıtlı, doğrudan giriş yapıldı.",
-                        masa_id=masa_id
+                        masa_id=masa_id,
+                        session_token=self._issue_customer_session(masa_id, device_id),
                     )
 
         # 2. Normal TOTP doğrulaması
-        is_valid = self.verify_dynamic_qr_token(masa_id, token)
-        if is_valid:
+        if self.verify_dynamic_qr_token(masa_id, token):
+            limiter.record_success(rate_keys)
             return QRDogrulamaResponse(
                 valid=True,
                 message="Dinamik QR başarıyla doğrulandı.",
-                masa_id=masa_id
+                masa_id=masa_id,
+                session_token=self._issue_customer_session(masa_id, device_id),
             )
-        
+
+        limiter.record_failure(rate_keys)
         return QRDogrulamaResponse(
             valid=False,
             message="Geçersiz veya süresi dolmuş QR kodu! Lütfen masadaki güncel QR kodunu tekrar okutunuz."
         )
-

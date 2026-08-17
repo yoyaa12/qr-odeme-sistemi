@@ -2,6 +2,8 @@
 // KITCHEN PANEL (MUTFAK PANELİ) LOGIC (GÜNCELLENMİŞ)
 // ==========================================================================
 
+const escapeHtml = window.SecurityText.escapeHtml;
+
 let kitchenOrders = [];
 
 function playKitchenAlertSound() {
@@ -35,36 +37,89 @@ function playKitchenAlertSound() {
     } catch(e) {}
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    loadKitchenOrders();
+function getStaffToken() {
+    if (window.StaffAuth && typeof window.StaffAuth.getToken === 'function') {
+        const t = window.StaffAuth.getToken();
+        if (t) return t;
+    }
+    if (window.StaffAuth && window.StaffAuth.getSession()) {
+        return window.StaffAuth.getSession().accessToken;
+    }
+    try {
+        const storedSession = JSON.parse(sessionStorage.getItem('qrStaffAuthSessionV1') || 'null');
+        if (storedSession && storedSession.accessToken) return storedSession.accessToken;
+        const storedLocal = JSON.parse(localStorage.getItem('qrStaffAuthSessionV1') || 'null');
+        if (storedLocal && storedLocal.accessToken) return storedLocal.accessToken;
+    } catch (e) {}
+    return null;
+}
 
-    // Socket.io Canlı Bağlantı & Gerçek Bağlantı Kontrolü
-    const socket = io({
+async function authFetch(url, options = {}) {
+    const token = getStaffToken();
+    const headers = options.headers ? { ...options.headers } : {};
+    if (token) {
+        headers['Authorization'] = 'Bearer ' + token;
+    }
+    return fetch(url, { ...options, headers });
+}
+
+let kitchenSocket = null;
+
+function initKitchenSocket() {
+    const token = getStaffToken();
+    if (kitchenSocket) {
+        try {
+            kitchenSocket.disconnect();
+        } catch (e) {}
+        kitchenSocket = null;
+    }
+
+    kitchenSocket = io({
+        auth: { token: token },
+        query: { token: token || '' },
         reconnection: true,
         reconnectionAttempts: Infinity,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000
     });
 
-    socket.on('connect', () => {
+    kitchenSocket.on('connect', () => {
         updateKitchenSocketBadge(true);
     });
 
-    socket.on('disconnect', () => {
+    kitchenSocket.on('disconnect', () => {
         updateKitchenSocketBadge(false);
     });
 
     // 1. Ödemesi Yapılan Yeni Sipariş Mutfağa Düştü!
-    socket.on('yeni_siparis', (newOrder) => {
+    kitchenSocket.on('yeni_siparis', (newOrder) => {
         playKitchenAlertSound();
-        showKitchenToast(`🔔 YENİ SİPARİŞ! ${newOrder.masa_no} (${newOrder.siparis_kodu})`);
+        showKitchenToast(`🔔 YENİ SİPARİŞ! ${(newOrder && newOrder.masa_no) || 'Masa'} (${(newOrder && newOrder.siparis_kodu) || ''})`);
         loadKitchenOrders();
     });
 
     // 2. Durum Güncellemeleri
-    socket.on('durum_guncellendi', (data) => {
+    kitchenSocket.on('durum_guncellendi', (data) => {
         loadKitchenOrders();
     });
+}
+
+window.addEventListener('staff-authenticated', () => {
+    initKitchenSocket();
+    loadKitchenOrders();
+});
+
+window.addEventListener('staff-auth-cleared', () => {
+    if (kitchenSocket) {
+        kitchenSocket.disconnect();
+    }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadKitchenOrders();
+    if (getStaffToken()) {
+        initKitchenSocket();
+    }
 });
 
 function updateKitchenSocketBadge(isConnected) {
@@ -82,10 +137,20 @@ function updateKitchenSocketBadge(isConnected) {
 
 async function loadKitchenOrders() {
     try {
-        const res = await fetch('/api/siparisler');
+        const res = await authFetch('/api/siparisler');
+        if (!res.ok) {
+            console.warn("Mutfak siparişleri yüklenemedi:", res.status);
+            kitchenOrders = [];
+            renderKitchenOrders();
+            return;
+        }
         const allOrders = await res.json();
         
-        kitchenOrders = allOrders.filter(o => ['odendi_mutfakta', 'garson_onayladi_mutfakta', 'nakit_tahsil_edildi', 'hazirlaniyor'].includes(o.siparis_durumu));
+        if (Array.isArray(allOrders)) {
+            kitchenOrders = allOrders.filter(o => ['odendi_mutfakta', 'garson_onayladi_mutfakta', 'nakit_tahsil_edildi', 'hazirlaniyor'].includes(o.siparis_durumu));
+        } else {
+            kitchenOrders = [];
+        }
         renderKitchenOrders();
     } catch (e) {
         console.error("Mutfak siparişleri yüklenemedi:", e);
@@ -111,15 +176,17 @@ function renderKitchenOrders() {
 
     let html = '';
     activeOrders.forEach(order => {
+        const orderId = Number(order.id);
+        if (!Number.isInteger(orderId) || orderId <= 0) return;
         const isNew = order.siparis_durumu === 'odendi_mutfakta' || order.siparis_durumu === 'garson_onayladi_mutfakta' || order.siparis_durumu === 'nakit_tahsil_edildi';
         const isPreparing = order.siparis_durumu === 'hazirlaniyor';
 
         html += `
-            <div class="order-card status-${order.siparis_durumu}">
+            <div class="order-card status-${escapeHtml(order.siparis_durumu)}">
                 <div class="order-header">
                     <div>
-                        <div class="order-table-title">🪑 ${order.masa_no}</div>
-                        <div class="order-code">${order.siparis_kodu} • ${order.olusturma_tarihi || ''}</div>
+                        <div class="order-table-title">🪑 ${escapeHtml(order.masa_no)}</div>
+                        <div class="order-code">${escapeHtml(order.siparis_kodu)} • ${escapeHtml(order.olusturma_tarihi)}</div>
                     </div>
                     <div style="text-align: right;">
                         <span class="table-badge" style="background: ${isNew ? 'var(--danger)' : 'var(--accent)'}">
@@ -135,11 +202,11 @@ function renderKitchenOrders() {
             html += `
                 <div class="order-item-row">
                     <div class="order-item-main">
-                        <span style="font-size: 1.1rem;">${item.adet}x ${item.urun_adi}</span>
+                        <span style="font-size: 1.1rem;">${escapeHtml(item.adet)}x ${escapeHtml(item.urun_adi)}</span>
                     </div>
                     ${item.urun_notu ? `
                         <div class="order-item-note">
-                            ⚠️ MÜŞTERİ NOTU: ${item.urun_notu}
+                            ⚠️ MÜŞTERİ NOTU: ${escapeHtml(item.urun_notu)}
                         </div>
                     ` : ''}
                 </div>
@@ -151,13 +218,13 @@ function renderKitchenOrders() {
 
                 <div class="status-btn-group">
                     ${isNew ? `
-                        <button class="btn-status-action btn-warning" onclick="updateOrderStatus(${order.id}, 'hazirlaniyor')">
+                        <button class="btn-status-action btn-warning" onclick="updateOrderStatus(${orderId}, 'hazirlaniyor')">
                             ▶ Hazırlanıyor
                         </button>
                     ` : ''}
                     
                     ${isPreparing ? `
-                        <button class="btn-status-action btn-success" onclick="updateOrderStatus(${order.id}, 'hazir')">
+                        <button class="btn-status-action btn-success" onclick="updateOrderStatus(${orderId}, 'hazir')">
                             ✔ Hazır! (Garsona Bildir)
                         </button>
                     ` : ''}
@@ -171,7 +238,7 @@ function renderKitchenOrders() {
 
 async function updateOrderStatus(siparisId, yeniDurum) {
     try {
-        const res = await fetch(`/api/siparisler/${siparisId}/durum`, {
+        const res = await authFetch(`/api/siparisler/${siparisId}/durum`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ yeni_durum: yeniDurum })
@@ -181,10 +248,10 @@ async function updateOrderStatus(siparisId, yeniDurum) {
             loadKitchenOrders();
         } else {
             const data = await res.json().catch(() => ({}));
-            alert("Durum güncellenirken hata oluştu: " + (data.detail || "Sunucu hatası"));
+            appAlert("Durum güncellenirken hata oluştu: " + (data.detail || "Sunucu hatası"));
         }
     } catch (e) {
-        alert("Sunucuya ulaşılamadı.");
+        appAlert("Sunucuya ulaşılamadı.");
     }
 }
 

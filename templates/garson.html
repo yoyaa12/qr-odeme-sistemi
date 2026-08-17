@@ -9,7 +9,7 @@
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 
-<body>
+<body data-staff-roles="garson" data-staff-auth-ui="external">
 
     <!-- NAVBAR -->
     <header class="navbar" style="border-bottom: 2px solid var(--success);">
@@ -21,7 +21,7 @@
             <span>Garson</span>
         </div>
         <div style="display: flex; align-items: center; gap: 10px;">
-            <div id="activeGarsonBadge" style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; font-weight: 700; background: rgba(99, 102, 241, 0.15); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.4); padding: 4px 10px; border-radius: 8px;">
+            <div id="activeGarsonBadge" role="button" tabindex="0" onclick="openGarsonPinModal()" style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; font-weight: 700; background: rgba(99, 102, 241, 0.15); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.4); padding: 4px 10px; border-radius: 8px; cursor: pointer;">
                 <span>🔑 Giriş Yapılmadı</span>
             </div>
             <button id="garsonLogoutBtn" type="button" onclick="logoutGarson()" style="display: none; background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); padding: 4px 8px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; cursor: pointer;">Çıkış</button>
@@ -87,8 +87,7 @@
 
                 <div
                     style="font-size:0.75rem; color:var(--text-muted); margin-top:16px; background: rgba(255,255,255,0.04); padding: 8px; border-radius: var(--radius-sm);">
-                    💡 Tanımlı Garson PIN'leri: <br><strong>Yiğit: 132167</strong> • <strong>Berat: 123456</strong> •
-                    <strong>Ahmet: 654321</strong>
+                    PIN bilginizi yöneticinizden alınız.
                 </div>
             </div>
         </div>
@@ -151,7 +150,10 @@
         </div>
     </main>
 
-    <script src="/static/js/waiter.js?v=7"></script>
+    <script src="/static/js/security.js?v=1"></script>
+    <script src="/static/js/ui_confirm.js?v=2"></script>
+    <script src="/static/js/staff_auth.js?v=2"></script>
+    <script src="/static/js/waiter.js?v=78"></script>
 </body>
 
 </html>

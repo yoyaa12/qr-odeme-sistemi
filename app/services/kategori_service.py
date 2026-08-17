@@ -1,7 +1,7 @@
 from fastapi import Depends
 from typing import List
 from app.repositories.kategori_repo import KategoriRepository
-from app.schemas.schemas import KategoriResponse
+from app.schemas.catalog import KategoriResponse
 from app.database import db_transaction
 
 class KategoriService:

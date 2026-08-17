@@ -12,14 +12,7 @@ from app.api.v1.api import api_router
 
 app = FastAPI(title="QR Restoran Sipariş Otomasyonu API")
 
-from app.core.image_loader import sync_product_images
 
-@app.on_event("startup")
-async def startup_db_updates():
-    try:
-        sync_product_images()
-    except Exception as e:
-        print("Startup notice:", e)
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():

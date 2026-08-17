@@ -67,7 +67,7 @@ window.MasaRuleti = (function () {
         style.innerHTML = `
             .rulet-modal-overlay {
                 position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-                background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px);
+                background: rgba(6, 9, 16, 0.96);
                 z-index: 99999; display: flex; align-items: center; justify-content: center;
                 animation: fadeIn 0.3s ease;
             }

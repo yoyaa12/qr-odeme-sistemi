@@ -1,8 +1,11 @@
 import hmac
 import hashlib
+import logging
 import time
 import secrets
-from typing import Dict, Set
+from typing import Set
+
+logger = logging.getLogger(__name__)
 
 # Replay Attack Prevention: Güvenli şekilde doğrulanmış token'ları saklama
 # Key: f"{masa_id}:{token}:{time_window}"
@@ -63,11 +66,11 @@ def get_seconds_remaining(timestamp: float = None) -> int:
         timestamp = time.time()
     return 30 - int(timestamp % 30)
 
-def verify_dynamic_token(masa_id: int, secret: str, token: str, timestamp: float = None) -> bool:
+def verify_dynamic_token(masa_id: int, secret: str, token: str, timestamp: float = None, mark_as_used: bool = True) -> bool:
     """
     Dinamik QR token'ını doğrular.
-    - Replay Attack Koruması: Aynı token 30s içinde 2. kez kullanılamaz.
-    - 30 Saniyelik Zaman Penceresi kontrolü.
+    - Replay Attack Koruması: Aynı token (mark_as_used=True ise) 2. kez kullanılamaz.
+    - 30 Saniyelik Zaman Penceresi kontrolü (Mevcut window ve ±1, ±2 window toleransı: +30s / -30s ve +60s / -60s).
     """
     if not secret or not token:
         return False
@@ -79,30 +82,33 @@ def verify_dynamic_token(masa_id: int, secret: str, token: str, timestamp: float
         
     current_window = int(timestamp // 30)
     
-    # 1. Replay Attack Kontrolü
-    token_entry = f"{masa_id}:{token}:{current_window}"
-    if token_entry in _used_tokens:
-        print(f"[SECURITY GUARD] Replay attack detected for Table {masa_id} with token {token}")
-        return False
-
-    # 2. Zaman Penceresi Kontrolü (Mevcut window ve ±1 window toleransı)
-    windows_to_check = [current_window, current_window - 1, current_window + 1]
+    # Zaman Penceresi Kontrolü (+30s / -30s ve +60s / -60s toleransı)
+    windows_to_check = [current_window, current_window - 1, current_window + 1, current_window - 2, current_window + 2]
     
     valid = False
     used_window = current_window
     
     for w in windows_to_check:
+        token_entry = f"{masa_id}:{token}:{w}"
+        if token_entry in _used_tokens:
+            logger.warning(
+                "Replay attack engellendi: masa %s, pencere %s", masa_id, w
+            )
+            continue
+
         ts = w * 30
         expected = generate_dynamic_token(secret, ts)
-        if hmac.compare_digest(expected, token):
+        if hmac.compare_digest(expected, str(token).strip()):
             valid = True
             used_window = w
             break
             
     if valid:
-        # Doğrulanan token'ı kullanıldı olarak işaretle
-        actual_entry = f"{masa_id}:{token}:{used_window}"
-        _used_tokens.add(actual_entry)
+        if mark_as_used:
+            # Doğrulanan token'ı kullanıldı olarak işaretle
+            actual_entry = f"{masa_id}:{token}:{used_window}"
+            _used_tokens.add(actual_entry)
         return True
         
     return False
+

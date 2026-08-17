@@ -1,6 +1,7 @@
 from fastapi import Depends
 from app.database import DatabaseSession, get_db
 from app.core.totp_service import generate_secret_key
+from app.enums import TableStatus
 
 class MasaRepository:
     def __init__(self, db: DatabaseSession = Depends(get_db)):
@@ -16,8 +17,10 @@ class MasaRepository:
 
     def create(self, masa_no: str, qr_kodu: str):
         secret = generate_secret_key()
-        query = "INSERT INTO Masalar (masa_no, qr_kodu, durum, totp_secret) VALUES (?, ?, 'bos', ?)"
-        return self.db.execute_non_query(query, (masa_no, qr_kodu, secret))
+        query = "INSERT INTO Masalar (masa_no, qr_kodu, durum, totp_secret) VALUES (?, ?, ?, ?)"
+        return self.db.execute_non_query(
+            query, (masa_no, qr_kodu, TableStatus.EMPTY.value, secret)
+        )
 
     def update_totp_secret(self, masa_id: int, secret: str):
         query = "UPDATE Masalar SET totp_secret = ? WHERE id = ?"
@@ -29,7 +32,7 @@ class MasaRepository:
         
         # Masa kapatılıyorsa (durum = 'bos') Güvenlik için Secret Rotation yap
         # Eski masa oturumuna ait HİÇBİR QR kod bir daha çalışamaz!
-        if durum == 'bos':
+        if durum == TableStatus.EMPTY.value:
             new_secret = generate_secret_key()
             self.update_totp_secret(masa_id, new_secret)
 

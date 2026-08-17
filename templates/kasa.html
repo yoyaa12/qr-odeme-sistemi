@@ -10,7 +10,7 @@
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 
-<body class="vega-kasa-body">
+<body class="vega-kasa-body" data-staff-roles="kasa">
 
     <!-- LEZZET DÜNYASI NAVBAR -->
     <header class="navbar vega-navbar">
@@ -217,16 +217,16 @@
                 <!-- KISAYOL BUTONLARI -->
                 <div style="display: flex; gap: 6px; margin-bottom: 16px;">
                     <button type="button" id="btnChipNakit" class="shortcut-chip"
-                        style="flex: 1.1; text-align: center; padding: 10px 4px; font-weight: 800; transition: all 0.2s;"
+                        style="flex: 1.1; text-align: center; padding: 10px 4px; font-weight: 800; transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;"
                         onclick="fillDualAmount('nakit')">💵 NAKİT</button>
                     <button type="button" id="btnChipPos" class="shortcut-chip"
-                        style="flex: 1.1; text-align: center; padding: 10px 4px; font-weight: 800; transition: all 0.2s;"
+                        style="flex: 1.1; text-align: center; padding: 10px 4px; font-weight: 800; transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;"
                         onclick="fillDualAmount('pos')">💳 KART</button>
                     <button type="button" id="btnChipHalf" class="shortcut-chip"
-                        style="flex: 1.2; text-align: center; padding: 10px 4px; font-weight: 800; background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); transition: all 0.2s;"
+                        style="flex: 1.2; text-align: center; padding: 10px 4px; font-weight: 800; background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;"
                         onclick="fillDualAmount('half')">⚖️ ½ Yarısını Al</button>
                     <button type="button" id="btnChipClear" class="shortcut-chip"
-                        style="flex: 0.9; text-align: center; padding: 10px 4px; font-weight: 800; background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); transition: all 0.2s;"
+                        style="flex: 0.9; text-align: center; padding: 10px 4px; font-weight: 800; background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;"
                         onclick="fillDualAmount('clear')">🧹 Temizle</button>
                 </div>
 
@@ -472,7 +472,10 @@
         </div>
     </div>
 
-    <script src="/static/js/kasa.js?v=46"></script>
+    <script src="/static/js/security.js?v=1"></script>
+    <script src="/static/js/ui_confirm.js?v=2"></script>
+    <script src="/static/js/staff_auth.js?v=3"></script>
+    <script src="/static/js/kasa.js?v=62"></script>
 </body>
 
 </html>

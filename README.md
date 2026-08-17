@@ -10,6 +10,7 @@ Sistem 3 temel katman üzerine inşa edilmiştir:
    - Müşteri QR Menü Arayüzü (`/menu?masa=1`)
    - Mutfak Operasyon Paneli (`/mutfak`)
    - Garson Operasyon Paneli (`/garson`)
+   - Kasa Paneli (`/kasa`)
    - Yönetici Paneli (`/admin`)
 
 2. **İş Mantığı Katmanı:**
@@ -62,16 +63,44 @@ pip install -r requirements.txt
 
 ### 2. Ortam Değişkenleri (.env)
 
-Proje kök dizininde `.env` dosyası oluşturup veritabanı bilgilerinizi tanımlayın (örnek için `.env.example` dosyasına bakabilirsiniz):
+`.env.example` dosyasını `.env` olarak kopyalayıp değerleri doldurun:
 
-```env
-DB_SERVER=.\SQLEXPRESS
-DB_NAME=RestoranQRDB
-DB_TRUSTED_CONNECTION=yes
-PORT=8000
+```bash
+cp .env.example .env
 ```
 
-### 3. Uygulamanın Başlatılması
+Windows (PowerShell) için:
+
+```bash
+Copy-Item .env.example .env
+```
+
+Doldurulması gereken değişkenler:
+
+| Değişken | Zorunlu | Açıklama |
+| --- | --- | --- |
+| `DB_SERVER` | evet | SQL Server örneği (ör. `.\SQLEXPRESS`) |
+| `DB_NAME` | evet | Veritabanı adı |
+| `DB_USER` / `DB_PASSWORD` | hayır | SQL kimlik doğrulaması kullanılıyorsa doldurulur |
+| `DB_TRUSTED_CONNECTION` | hayır | Windows kimlik doğrulaması için `yes` (varsayılan) |
+| `PORT` | hayır | Varsayılan `8000` |
+| `AUTH_SECRET_KEY` | **evet** | Personel JWT imzalama anahtarı, **en az 32 bayt** |
+| `AUTH_STAFF_TOKEN_TTL_SECONDS` | hayır | Token ömrü, varsayılan `2592000` (30 gün) |
+
+`AUTH_SECRET_KEY` tanımlı değilse veya 32 bayttan kısaysa uygulama açılışta
+`AuthConfigurationError` fırlatır. Rastgele bir anahtar üretmek için:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+### 3. Veritabanı Bağlantısı
+
+Uygulama önce `pyodbc` ile bağlanmayı dener; bunun için
+[Microsoft ODBC Driver 17 veya 18 for SQL Server](https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server)
+kurulu olmalıdır. Uygun bir ODBC sürücüsü bulunamazsa `pymssql`'e düşülür.
+
+### 4. Uygulamanın Başlatılması
 
 ```bash
 python run.py
@@ -82,4 +111,25 @@ Uygulama çalıştıktan sonra aşağıdaki adreslerden erişilebilir:
 - **Müşteri Menüsü:** http://localhost:8000/menu?masa=1
 - **Mutfak Paneli:** http://localhost:8000/mutfak
 - **Garson Paneli:** http://localhost:8000/garson
+- **Kasa Paneli:** http://localhost:8000/kasa
 - **Yönetici Paneli:** http://localhost:8000/admin
+
+## Testler
+
+Testler yalnızca standart kütüphaneleri kullanır, ek bağımlılık gerektirmez.
+
+Python tarafı (`unittest`):
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+Frontend sözleşme testleri (Node.js 18+ yerleşik test koşucusu):
+
+```bash
+node --test "tests/frontend/**/*.test.cjs"
+```
+
+## Lisans
+
+MIT — ayrıntılar için [LICENSE](LICENSE) dosyasına bakınız.
