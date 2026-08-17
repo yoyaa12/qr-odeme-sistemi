@@ -21,7 +21,7 @@ dosyasında tutulur.
 
 Gerçek kod değişikliklerinin geçmişi:
 
-- `CODEX_CHANGELOG.md`
+- `CHANGELOG.md`
 
 dosyasında tutulur.
 

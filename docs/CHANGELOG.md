@@ -101,7 +101,7 @@ business/security behavior was changed.
     schema facts, endpoint/auth inventory, QR/TOTP flow, staff login flow,
     payment/realtime behavior, severity-classified findings, blockers, test
     state, architectural decisions, and exact next action.
-- `docs/CODEX_CHANGELOG.md`
+- `docs/CHANGELOG.md`
   - Appended this Milestone 0 audit entry.
 
 #### Files deleted
@@ -273,7 +273,7 @@ paths, JSON field names, and valid lowercase wire values were preserved.
 - `docs/IMPLEMENTATION_STATUS.md`
   - Marked Milestone 1 complete and recorded test/API validation results plus the
     next independent safe hardening batch.
-- `docs/CODEX_CHANGELOG.md`
+- `docs/CHANGELOG.md`
   - Appended this entry.
 
 #### Files deleted
@@ -425,7 +425,7 @@ current-TOTP rule.
   - Records the completed frontend batch, distinguishes remediated versus open
     findings, adds actual test results, documents residual XSS sinks, and changes
     the exact next action to the Milestone 2 approval blocker.
-- `docs/CODEX_CHANGELOG.md`
+- `docs/CHANGELOG.md`
   - Appends this detailed entry.
 
 #### Files deleted
@@ -620,7 +620,7 @@ User approved the staff credential migration. Provisioned a strong `AUTH_SECRET_
   - Added `AUTH_SECRET_KEY` and `AUTH_STAFF_TOKEN_TTL_SECONDS`.
 - `docs/IMPLEMENTATION_STATUS.md`
   - Marked Milestone 2 as completed and updated the exact next action.
-- `docs/CODEX_CHANGELOG.md`
+- `docs/CHANGELOG.md`
   - Appended this Milestone 2 entry.
 
 #### Files deleted
@@ -699,7 +699,7 @@ Implemented the backend requirements for QR Customer Session Authentication to s
   - Enforced `CUSTOMER_SESSION` or `current_totp_token` requirement during order creation.
 - `docs/IMPLEMENTATION_STATUS.md`
   - Updated Milestone 4 status.
-- `docs/CODEX_CHANGELOG.md`
+- `docs/CHANGELOG.md`
   - Appended this entry.
 
 #### Files deleted
@@ -776,7 +776,7 @@ Implemented object-level authorization (Milestone 5) and finalized role-based ac
   - Updated `checkActiveOrder()` to send `Authorization: Bearer <sessionToken>`.
 - `docs/IMPLEMENTATION_STATUS.md`
   - Marked Milestone 3 and 5 as completed.
-- `docs/CODEX_CHANGELOG.md`
+- `docs/CHANGELOG.md`
   - Appended this entry.
 
 #### Files deleted
@@ -858,7 +858,7 @@ Implemented authoritative backend price and total recalculation, stock availabil
   - Integrated `validate_order_state_transition` into `update_siparis_durumu`.
 - `docs/IMPLEMENTATION_STATUS.md`
   - Marked Milestone 6 complete and updated next action.
-- `docs/CODEX_CHANGELOG.md`
+- `docs/CHANGELOG.md`
   - Appended this entry.
 
 #### Files deleted
@@ -939,7 +939,7 @@ Implemented Socket.IO handshake authentication (`connect` event) and room-based 
   - Updated Socket.IO client initialization to pass `auth: { token: getStaffToken() }`.
 - `docs/IMPLEMENTATION_STATUS.md`
   - Marked Milestone 7 complete and updated next action.
-- `docs/CODEX_CHANGELOG.md`
+- `docs/CHANGELOG.md`
   - Appended this entry.
 
 #### Files deleted
@@ -1012,7 +1012,7 @@ Fixed an `HTTP 500 Internal Server Error` on `/api/auth/login` and `/api/garson/
   - Added unit test `test_login_and_pin_response_supports_extended_ttl` to verify response schema serialization with long-lived TTLs.
 - `docs/IMPLEMENTATION_STATUS.md`
   - Updated status documentation with details of the fix.
-- `docs/CODEX_CHANGELOG.md`
+- `docs/CHANGELOG.md`
   - Appended this changelog entry.
 
 #### Files deleted
@@ -1081,7 +1081,7 @@ Fixed a JavaScript runtime error (`ReferenceError: salonContainer is not defined
   - Defined `salonContainer` and `bahceContainer` variables using `document.getElementById('kasaGridSalon')` and `document.getElementById('kasaGridBahce')` with null checks before populating innerHTML.
 - `docs/IMPLEMENTATION_STATUS.md`
   - Updated status documentation with details of the fix.
-- `docs/CODEX_CHANGELOG.md`
+- `docs/CHANGELOG.md`
   - Appended this changelog entry.
 
 #### Files deleted

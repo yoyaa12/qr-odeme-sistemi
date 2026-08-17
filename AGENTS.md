@@ -23,7 +23,7 @@ Her implementation çalışmasından önce aşağıdaki dosyalar okunmalıdır:
 1. `AGENTS.md`
 2. `docs/SECURITY_AUTH_REFACTOR.md`
 3. `docs/IMPLEMENTATION_STATUS.md`
-4. `docs/CODEX_CHANGELOG.md`
+4. `docs/CHANGELOG.md`
 
 Bu dosyaların görevleri:
 
@@ -37,7 +37,7 @@ Bu dosyaların görevleri:
 - `docs/IMPLEMENTATION_STATUS.md`
   - Projenin ŞU ANDA hangi aşamada olduğunu gösterir.
 
-- `docs/CODEX_CHANGELOG.md`
+- `docs/CHANGELOG.md`
   - Gerçekte hangi dosyaların, neden ve nasıl değiştirildiğinin geçmişini tutar.
 
 Mevcut kullanıcı talebi bu dokümanlardan biriyle çelişirse:
@@ -56,7 +56,7 @@ Her yeni Codex / AI çalışma oturumunun başında:
 1. `AGENTS.md` dosyasını tamamen oku.
 2. `docs/SECURITY_AUTH_REFACTOR.md` dosyasını oku.
 3. `docs/IMPLEMENTATION_STATUS.md` dosyasını tamamen oku.
-4. `docs/CODEX_CHANGELOG.md` içindeki en son ilgili kayıtları oku.
+4. `docs/CHANGELOG.md` içindeki en son ilgili kayıtları oku.
 5. Mevcut Git status / Git diff durumunu incele.
 6. Dokümantasyonda tamamlandı yazan önemli değişiklikleri gerçek kod üzerinden doğrula.
 7. İlk tamamlanmamış milestone veya task'tan devam et.
@@ -151,7 +151,7 @@ anlayabilmelidir.
 
 # 5. Mandatory Codex Changelog
 
-`docs/CODEX_CHANGELOG.md` sürekli korunacaktır.
+`docs/CHANGELOG.md` sürekli korunacaktır.
 
 Her anlamlı implementation batch sonrasında yeni bir entry eklenmelidir.
 
@@ -214,7 +214,7 @@ Context azalıyor, session kapanmak üzere veya çalışma yarıda kalacaksa:
 2. Mevcut küçük ve güvenli çalışma birimini tamamla.
 3. Mümkün olan testleri çalıştır.
 4. `docs/IMPLEMENTATION_STATUS.md` güncelle.
-5. `docs/CODEX_CHANGELOG.md` güncelle.
+5. `docs/CHANGELOG.md` güncelle.
 6. Unresolved problem'leri yaz.
 7. Exact next action'ı yaz.
 
@@ -242,7 +242,7 @@ Her major milestone için:
 7. Testleri çalıştır.
 8. Git diff'i incele.
 9. `docs/IMPLEMENTATION_STATUS.md` güncelle.
-10. `docs/CODEX_CHANGELOG.md` dosyasına entry ekle.
+10. `docs/CHANGELOG.md` dosyasına entry ekle.
 11. Sonraki adıma geç.
 
 Mevcut çalışan davranış, requirement tarafından özellikle değiştirilmediği
@@ -1020,7 +1020,7 @@ Database schema değişikliği gerekiyorsa:
 Agent autonomous çalışıyor olsa bile bu kural geçerlidir.
 
 Kullanıcı database değişikliğini onayladıktan sonra bile yapılan değişiklik
-`docs/CODEX_CHANGELOG.md` içinde kaydedilmelidir.
+`docs/CHANGELOG.md` içinde kaydedilmelidir.
 
 ---
 
@@ -1322,7 +1322,7 @@ Bir task `COMPLETE` sayılabilmek için:
 - test sonuçları gerçek şekilde raporlanmış olmalı,
 - failures belgelenmiş olmalı,
 - `docs/IMPLEMENTATION_STATUS.md` güncel olmalı,
-- `docs/CODEX_CHANGELOG.md` güncel olmalı,
+- `docs/CHANGELOG.md` güncel olmalı,
 - unresolved work açıkça yazılmış olmalı,
 - exact next action güncel olmalı.
 
