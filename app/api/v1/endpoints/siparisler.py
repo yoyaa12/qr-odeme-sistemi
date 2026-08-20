@@ -31,15 +31,20 @@ async def create_siparis(
     data: SiparisOlusturModel,
     service: SiparisService = Depends(),
     actor: StaffPrincipal | dict = Depends(get_current_user_or_customer)
-):
+) -> SiparisIslemCevapModel:
+    customer_session_id = None
     if isinstance(actor, dict):
         if actor["masa_id"] != data.masa_id:
             raise HTTPException(
                 status_code=403,
                 detail="Bu oturum ile sadece yetkili olduğunuz masaya sipariş verebilirsiniz."
             )
+        # Siparişin sahibi doğrulanmış oturumdan belirlenir. İstek gövdesinde
+        # böyle bir alan yok ve olmamalı: istemci "bu sipariş şu kişinin" diye
+        # bir iddiada bulunamaz (AGENTS.md §10).
+        customer_session_id = actor.get("id")
 
-    full_order = await service.create_siparis(data)
+    full_order = await service.create_siparis(data, customer_session_id=customer_session_id)
     return {"status": "success", "message": "Sipariş oluşturuldu.", "siparis": full_order}
 
 
@@ -49,7 +54,7 @@ async def get_siparisler(
     masa_id: Optional[int] = None,
     service: SiparisService = Depends(),
     _principal: StaffPrincipal = Depends(authenticated_staff),
-):
+) -> List[SiparisResponse]:
     return service.get_siparisler(durum, masa_id)
 
 
@@ -59,7 +64,7 @@ async def update_siparis_durumu(
     data: DurumGuncelleModel,
     service: SiparisService = Depends(),
     principal: StaffPrincipal = Depends(authenticated_staff),
-):
+) -> SiparisDurumIslemCevapModel:
     event_payload = await service.update_siparis_durumu(siparis_id, data, principal)
     return {"status": "success", "message": "Sipariş güncellendi.", "data": event_payload}
 
@@ -70,6 +75,6 @@ async def update_siparis_items(
     data: SiparisDuzenleModel,
     service: SiparisService = Depends(),
     principal: StaffPrincipal = Depends(order_editor),
-):
+) -> SiparisIslemCevapModel:
     updated_order = await service.update_siparis_items(siparis_id, data, principal)
     return {"status": "success", "message": "Sipariş kalemleri güncellendi.", "siparis": updated_order}

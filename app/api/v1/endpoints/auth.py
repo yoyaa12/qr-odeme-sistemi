@@ -8,7 +8,9 @@ from app.schemas.auth import KullaniciResponse, LoginModel, LoginResponse
 router = APIRouter()
 
 @router.post("/auth/login", response_model=LoginResponse)
-def login(data: LoginModel, request: Request, service: AuthService = Depends()):
+def login(
+    data: LoginModel, request: Request, service: AuthService = Depends()
+) -> LoginResponse:
     client_host = request.client.host if request.client else "unknown"
     result = service.login(data, client_host)
     user = KullaniciResponse(
@@ -27,7 +29,7 @@ def login(data: LoginModel, request: Request, service: AuthService = Depends()):
 @router.get("/auth/me", response_model=KullaniciResponse)
 def get_authenticated_staff(
     principal: StaffPrincipal = Depends(get_current_staff),
-):
+) -> KullaniciResponse:
     return KullaniciResponse(
         id=principal.user_id,
         kullanici_adi=principal.username,

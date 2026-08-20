@@ -4,6 +4,28 @@
 
 const escapeHtml = window.SecurityText.escapeHtml;
 
+/**
+ * Yönetici panelinden gelen görsel adresini `src` özniteliğine yazılabilir hale
+ * getirir.
+ *
+ * Kaçış tek başına yeterli değil: `src` bir URL bağlamı, dolayısıyla değerin
+ * biçimi de denetlenmeli. Yalnızca site içi mutlak yol (`/static/...`) ve
+ * `http`/`https` adreslerine izin verilir; `javascript:`, `data:` gibi şemalar
+ * ve öznitelikten kaçmaya çalışan değerler boş döner. Boş dönmesi zararsızdır:
+ * çağıran zaten görsel yoksa ikon yer tutucusunu gösteriyor.
+ */
+function safeImageUrl(value) {
+    const url = String(value ?? '').trim();
+    if (!url) return '';
+    // `//evil.com` ve `/\evil.com` protokol-göreli adreslerdir; tek eğik çizgiyle
+    // başlasalar da tarayıcı bunları dış siteye çözer, o yüzden site içi
+    // sayılmazlar.
+    const siteIci = url.startsWith('/') && !url.startsWith('//') && !url.startsWith('/\\');
+    const mutlak = /^https?:\/\//i.test(url);
+    if (!siteIci && !mutlak) return '';
+    return escapeHtml(url);
+}
+
 let socket = null;
 
 let state = {
@@ -304,6 +326,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    // Stok her masanın siparişinden etkilenir, bu yüzden yayın masa odasına
+    // değil herkese gider: yan masa son 3 çorbayı söylediğinde bu ekrandaki
+    // "Son X Adet" uyarısı da anında düşmelidir.
+    socket.on('stok_guncellendi', (data) => {
+        applyStockSnapshot(data);
+    });
+
     socket.on('masa_tasindi', (data) => {
         if (data && parseInt(data.from_masa_id) === parseInt(state.masaId)) {
             handleTableMove(data.from_masa_id, data.to_masa_id, data.to_masa_no, data.from_masa_no);
@@ -465,6 +494,12 @@ async function checkActiveOrder() {
         });
 
         if (res.status === 401 || res.status === 403) {
+            // Oturum iptal edilmiş (adisyon kapanmış) veya geçersiz. Ölü token'ı
+            // saklamaya devam etmek, sonraki sipariş denemesinde kafa karıştırıcı
+            // bir 401'e yol açar; sipariş akışı zaten kod ekranıyla kurtarıyor.
+            if (res.status === 401) {
+                localStorage.removeItem('qr_session_token_' + state.masaId);
+            }
             // Token invalid or missing, clear orders
             state.activeOrders = [];
             state.currentOrder = null;
@@ -488,6 +523,7 @@ async function checkActiveOrder() {
             state.activeOrders = data.siparisler || [data.siparis];
             state.currentOrder = data.siparis || state.activeOrders[state.activeOrders.length - 1];
             state.genelToplam = data.genel_toplam || state.activeOrders.reduce((sum, o) => sum + (o.toplam_tutar || 0), 0);
+            state.benimToplamim = (typeof data.benim_toplamim === 'number') ? data.benim_toplamim : null;
             renderOrderTrackingUI();
         } else {
             state.activeOrders = [];
@@ -531,6 +567,89 @@ async function loadMenuData() {
 async function loadCategories() { return loadMenuData(); }
 async function loadProducts() { return loadMenuData(); }
 
+// Menü verisi sayfa açılışında bir kez yükleniyordu, bu yüzden ekrandaki stok
+// zamanla gerçeğinden uzaklaşıyordu: müşteri "stokta 16 adet kalmıştır" uyarısı
+// alırken gerçek stok 10 olabiliyordu. Sunucu her siparişte gerçek stoğu
+// kontrol ettiği için bu bir güvenlik açığı değil, ama yanıltıcı.
+//
+// Burada yalnızca stok alanları tazelenir; kategori/ürün listesi yeniden
+// render edilmez, böylece müşteri menüyü kaydırırken ekran altından kaymaz.
+// Yeni değerler bir sonraki render'da ve tüm stok uyarılarında kullanılır.
+async function refreshStockQuietly() {
+    try {
+        const res = await fetch('/api/urunler');
+        if (!res.ok) return;
+        const fresh = await res.json();
+        if (!Array.isArray(fresh)) return;
+
+        const stockById = new Map(fresh.map(p => [p.id, p.stok_miktari]));
+        const changed = [];
+        state.urunler.forEach(p => {
+            if (stockById.has(p.id) && p.stok_miktari !== stockById.get(p.id)) {
+                p.stok_miktari = stockById.get(p.id);
+                changed.push(p.id);
+            }
+        });
+        if (state.currentProduct && stockById.has(state.currentProduct.id)) {
+            state.currentProduct.stok_miktari = stockById.get(state.currentProduct.id);
+            syncModalQuantityLimit();
+        }
+
+        // Bir soket olayı kaçtıysa tazeleme yalnızca veriyi düzeltiyor, ekranı
+        // düzeltmiyordu: rozet bir sonraki tam render'a kadar eski kalıyordu.
+        // Yalnızca gerçekten değişen kartlar yeniden çizilir, böylece müşteri
+        // menüyü kaydırırken ekran altından kaymaz.
+        changed.forEach(rerenderProductCard);
+    } catch (e) {
+        // Tazeleme başarısız olursa eski değerlerle devam edilir; sipariş
+        // sırasında sunucu zaten gerçek stoğu doğruluyor.
+    }
+}
+
+// Soket kopuk kaldığında ya da bir olay kaçtığında ekranın gerçekten sapmaması
+// için periyodik tazeleme güvenlik ağı olarak durur. Canlı yol artık
+// `stok_guncellendi` soket olayıdır.
+setInterval(refreshStockQuietly, 60000);
+
+// Tek bir ürün kartını, kart HTML'ini üreten fonksiyonun kendisiyle yeniden
+// çizer. Stok rozeti ("Son 3 Adet!" / "Tükendi"), tıklama davranışı ve buton
+// durumu hep birlikte stoğa bağlı olduğu için tek tek DOM alanı güncellemek
+// yerine kart bütünüyle değiştirilir; böylece hiçbiri diğerinden geri kalmaz.
+function rerenderProductCard(prodId) {
+    const prod = state.urunler.find(p => p.id === prodId);
+    if (!prod) return;
+
+    const cardEl = document.getElementById(`product-card-${prod.id}`);
+    if (!cardEl) return;
+
+    const holder = document.createElement('div');
+    holder.innerHTML = renderProductCardHTML(prod).trim();
+    const freshCard = holder.firstElementChild;
+    if (freshCard) cardEl.replaceWith(freshCard);
+}
+
+// Sunucudan gelen canlı stok anlık görüntüsünü ekrana uygular.
+// `{ stoklar: [{ urun_id, stok_miktari }] }`
+function applyStockSnapshot(payload) {
+    const stoklar = payload && Array.isArray(payload.stoklar) ? payload.stoklar : [];
+    if (stoklar.length === 0) return;
+
+    stoklar.forEach(entry => {
+        const urunId = parseInt(entry.urun_id);
+        const yeniStok = parseInt(entry.stok_miktari);
+        if (isNaN(urunId) || isNaN(yeniStok)) return;
+
+        const prod = state.urunler.find(p => p.id === urunId);
+        if (prod) prod.stok_miktari = yeniStok;
+        if (state.currentProduct && state.currentProduct.id === urunId) {
+            state.currentProduct.stok_miktari = yeniStok;
+            syncModalQuantityLimit();
+        }
+
+        rerenderProductCard(urunId);
+    });
+}
+
 // DİKEY KATEGORİ SİDEBARI RENDER
 function renderCategoryGrid() {
     const container = document.getElementById('categoryGridBar');
@@ -549,10 +668,10 @@ function renderCategoryGrid() {
         html += `
             <div class="category-card-box ${isActive ? 'active' : ''}" onclick="selectCategory(${cat.id})">
                 ${hasImg
-                ? `<img src="${cat.gorsel_url}" class="category-card-img" alt="${cat.kategori_adi}" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';"><span class="category-card-icon" style="display:none;">${icon}</span>`
+                ? `<img src="${safeImageUrl(cat.gorsel_url)}" class="category-card-img" alt="${escapeHtml(cat.kategori_adi)}" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';"><span class="category-card-icon" style="display:none;">${icon}</span>`
                 : `<span class="category-card-icon">${icon}</span>`
             }
-                <span class="category-card-title">${cat.kategori_adi}</span>
+                <span class="category-card-title">${escapeHtml(cat.kategori_adi)}</span>
             </div>
         `;
     });
@@ -619,7 +738,7 @@ function renderProducts() {
         html += `
             <div class="category-section" id="cat-section-${cat.id}" data-cat-id="${cat.id}">
                 <div class="category-section-title">
-                    <h2>${icon} ${cat.kategori_adi}</h2>
+                    <h2>${icon} ${escapeHtml(cat.kategori_adi)}</h2>
                 </div>
                 <div class="category-products-list">
         `;
@@ -638,6 +757,81 @@ function renderProducts() {
     initCategoryIntersectionObserver();
 }
 
+// Tek seferde sepete eklenebilecek üst sınır. Sunucudaki satır başına sınır
+// (app/schemas/orders.py MAX_LINE_QUANTITY = 50) daha yüksektir; buradaki
+// düşük değer arayüz için makul bir tavan, stok ise gerçek sınırdır.
+const MAX_ITEM_QUANTITY_PER_ADD = 20;
+
+// Stok alanı yoksa ürün stok takipsiz sayılır (eski davranış korunur).
+function getProductStock(prod) {
+    if (!prod) return 0;
+    return (prod.stok_miktari !== undefined && prod.stok_miktari !== null)
+        ? parseInt(prod.stok_miktari)
+        : 100;
+}
+
+function getCartQuantityFor(prodId) {
+    return state.cart
+        .filter(item => item.urun_id === prodId)
+        .reduce((sum, item) => sum + item.adet, 0);
+}
+
+// Modalde seçilebilecek en yüksek adet. Sepette o üründen zaten bulunan adet
+// düşülür: 8 stoklu bir üründen sepette 3 varsa modal en fazla 5 verdirmelidir.
+function getModalMaxQuantity() {
+    if (!state.currentProduct) return MAX_ITEM_QUANTITY_PER_ADD;
+    const remaining = getProductStock(state.currentProduct) - getCartQuantityFor(state.currentProduct.id);
+    return Math.min(MAX_ITEM_QUANTITY_PER_ADD, Math.max(0, remaining));
+}
+
+// Adet alanını mevcut stoğa göre sınırlar. Müşteri stoğun üzerinde bir sayıya
+// hiç ulaşamamalı: önceden 20 seçip "yetersiz stok" hatası almak mümkündü,
+// oysa seçilebilen en yüksek değer baştan stok olmalı.
+function syncModalQuantityLimit(options = {}) {
+    const input = document.getElementById('modalQuantity');
+    if (!input) return MAX_ITEM_QUANTITY_PER_ADD;
+
+    const maxAllowed = getModalMaxQuantity();
+    input.max = String(Math.max(1, maxAllowed));
+
+    let current = parseInt(input.value);
+    if (isNaN(current) || current < 1) current = 1;
+
+    if (maxAllowed >= 1 && current > maxAllowed) {
+        current = maxAllowed;
+        if (options.warn) {
+            showToast(`⚠️ Stokta ${getProductStock(state.currentProduct)} adet kalmıştır.`);
+        }
+    }
+
+    input.value = String(current);
+    updateModalCalculatedPrice();
+    return maxAllowed;
+}
+
+// Elle yazılan değer için: geçersiz/aşan giriş sessizce en yüksek geçerli
+// değere çekilir ve müşteriye kalan stok söylenir.
+window.clampModalQuantity = function () {
+    const input = document.getElementById('modalQuantity');
+    if (!input) return;
+
+    const raw = parseInt(input.value);
+    const maxAllowed = getModalMaxQuantity();
+
+    if (isNaN(raw) || raw < 1) {
+        input.value = '1';
+        updateModalCalculatedPrice();
+        return;
+    }
+
+    if (maxAllowed >= 1 && raw > maxAllowed) {
+        input.value = String(maxAllowed);
+        showToast(`⚠️ Stokta ${getProductStock(state.currentProduct)} adet kalmıştır.`);
+    }
+
+    updateModalCalculatedPrice();
+};
+
 function renderProductCardHTML(prod) {
     const catName = prod.kategori_adi ? prod.kategori_adi : '';
     const prodName = prod.urun_adi ? prod.urun_adi : '';
@@ -648,7 +842,7 @@ function renderProductCardHTML(prod) {
     const inCartQty = cartItems.reduce((sum, item) => sum + item.adet, 0);
     const isSelected = inCartQty > 0;
 
-    const stock = (prod.stok_miktari !== undefined && prod.stok_miktari !== null) ? parseInt(prod.stok_miktari) : 100;
+    const stock = getProductStock(prod);
     const isOutOfStock = stock <= 0;
     const isLowStock = stock >= 1 && stock <= 5;
 
@@ -673,7 +867,7 @@ function renderProductCardHTML(prod) {
         <div class="product-card ${isSelected ? 'selected' : ''} ${isOutOfStock ? 'out-of-stock' : ''}" id="product-card-${prod.id}" ${cardOnClick} style="${isOutOfStock ? 'opacity:0.55;' : ''}">
             <div class="product-card-image-box">
                 ${hasImage
-            ? `<img src="${prod.gorsel_url}" alt="${prod.urun_adi}" class="product-card-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            ? `<img src="${safeImageUrl(prod.gorsel_url)}" alt="${escapeHtml(prod.urun_adi)}" class="product-card-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                        <div class="product-card-placeholder" style="display:none;"><span>${icon}</span></div>`
             : `<div class="product-card-placeholder"><span>${icon}</span></div>`
         }
@@ -681,7 +875,7 @@ function renderProductCardHTML(prod) {
 
             <div class="product-card-content">
                 <div class="product-title-row">
-                    <div class="product-title" title="${prod.urun_adi}">${prod.urun_adi}</div>
+                    <div class="product-title" title="${escapeHtml(prod.urun_adi)}">${escapeHtml(prod.urun_adi)}</div>
                 </div>
 
                 <div class="product-bottom-row" style="display:flex; justify-content:space-between; align-items:flex-end; gap:4px; width:100%;">
@@ -722,7 +916,7 @@ function quickAddToCart(event, productId, delta = 1) {
     const prod = state.urunler.find(p => p.id === productId);
     if (!prod) return;
 
-    const stock = (prod.stok_miktari !== undefined && prod.stok_miktari !== null) ? parseInt(prod.stok_miktari) : 100;
+    const stock = getProductStock(prod);
     if (stock <= 0) {
         showToast("⛔ Stok Tükendi");
         return;
@@ -784,9 +978,17 @@ function openProductNoteModal(productId) {
     const prod = state.urunler.find(p => p.id === productId);
     if (!prod) return;
 
-    const stock = (prod.stok_miktari !== undefined && prod.stok_miktari !== null) ? parseInt(prod.stok_miktari) : 100;
+    const stock = getProductStock(prod);
     if (stock <= 0) {
         showToast("⚠️ Bu ürünün stoğu tükenmiştir, sipariş verilemez.");
+        return;
+    }
+
+    // Stoğun tamamı zaten sepette: modal açılsa da seçilebilecek adet 0
+    // olurdu. Müşteriye 1 adet seçtirip sipariş anında reddetmek yerine
+    // burada söylenir.
+    if (stock - getCartQuantityFor(prod.id) <= 0) {
+        showToast(`⚠️ Stokta ${stock} adet kalmıştır, hepsi sepetinizde.`);
         return;
     }
 
@@ -819,6 +1021,7 @@ function openProductNoteModal(productId) {
 
     document.getElementById('modalProductNote').value = '';
     document.getElementById('modalQuantity').value = '1';
+    syncModalQuantityLimit();
 
     const catName = (prod.kategori_adi || '').toLowerCase();
     const prodName = (prod.urun_adi || '').toLowerCase();
@@ -1077,9 +1280,8 @@ function confirmAddToCart() {
     const quantity = parseInt(document.getElementById('modalQuantity').value) || 1;
     const manualNote = document.getElementById('modalProductNote').value.trim();
 
-    const stock = (state.currentProduct.stok_miktari !== undefined && state.currentProduct.stok_miktari !== null) ? parseInt(state.currentProduct.stok_miktari) : 100;
-    const cartItems = state.cart.filter(item => item.urun_id === state.currentProduct.id);
-    const inCartQty = cartItems.reduce((sum, item) => sum + item.adet, 0);
+    const stock = getProductStock(state.currentProduct);
+    const inCartQty = getCartQuantityFor(state.currentProduct.id);
 
     if (inCartQty + quantity > stock) {
         showToast(`⚠️ Stokta sadece ${stock} adet kalmıştır.`);
@@ -1225,11 +1427,25 @@ function updateCartUI(affectedProdId = null) {
 window.changeModalQuantity = function (delta) {
     const input = document.getElementById('modalQuantity');
     if (!input) return;
+
+    const maxAllowed = getModalMaxQuantity();
     let current = parseInt(input.value) || 1;
-    current += delta;
+    const target = current + delta;
+
+    // Stoğun üzerine çıkan "+" basışı sayıyı hiç artırmaz. Önceden değer 9
+    // olup sipariş anında reddediliyordu; artık sınıra çarpınca kalan stok
+    // söylenir ve sayı 8'de kalır.
+    if (delta > 0 && maxAllowed >= 1 && target > maxAllowed) {
+        input.value = String(maxAllowed);
+        updateModalCalculatedPrice();
+        showToast(`⚠️ Stokta ${getProductStock(state.currentProduct)} adet kalmıştır.`);
+        return;
+    }
+
+    current = target;
     if (current < 1) current = 1;
-    if (current > 20) current = 20;
-    input.value = current;
+    if (current > MAX_ITEM_QUANTITY_PER_ADD) current = MAX_ITEM_QUANTITY_PER_ADD;
+    input.value = String(current);
     updateModalCalculatedPrice();
 };
 
@@ -1247,6 +1463,17 @@ window.updateCartItemQuantity = async function (index, delta) {
         if (!state.cart[index]) return;
         state.cart.splice(index, 1);
     } else {
+        // Sepet ekranındaki "+" da stoğu aşamaz; modal ile aynı kural.
+        if (delta > 0) {
+            const urunId = state.cart[index].urun_id;
+            const prod = state.urunler.find(p => p.id === urunId);
+            const stock = getProductStock(prod);
+            if (getCartQuantityFor(urunId) + delta > stock) {
+                showToast(`⚠️ Stokta ${stock} adet kalmıştır.`);
+                return;
+            }
+        }
+
         state.cart[index].adet += delta;
         if (state.cart[index].adet <= 0) {
             state.cart.splice(index, 1);
@@ -1506,14 +1733,17 @@ async function executeOrderSubmit(odemeYontemi) {
             updateCartUI();
 
             await checkActiveOrder();
+            refreshStockQuietly(); // Kendi siparişimiz stoğu düşürdü
 
             if (odemeYontemi === 'pos') {
                 showToast("💳 Ödemeniz onaylandı ve siparişiniz alındı!");
             } else {
-                showToast("🛎️ Siparişiniz iletildi! Garsonumuz masanıza geliyor.");
+                showToast("🛎️ Siparişiniz garsona iletildi.");
             }
-        } else if (res.status === 403 && data.detail && data.detail.includes("6 haneli")) {
-            // İlk sipariş güvenlik onayı gerekiyor!
+        } else if (res.status === 401 || (res.status === 403 && data.detail && data.detail.includes("6 haneli"))) {
+            // 403: masa BOŞ, ilk sipariş için fiziksel kod isteniyor.
+            // 401: masanın adisyonu kapandığı için oturum iptal edilmiş.
+            // Her iki durumda da çözüm aynı: masadaki güncel 6 haneli kod.
             openFirstOrderPINModal(odemeYontemi);
         } else {
             showToast(data.detail || "⚠️ Hata oluştu.");
@@ -1545,14 +1775,55 @@ function closeFirstOrderPINModal() {
     if (modal) modal.classList.remove('active');
 }
 
-function submitFirstOrderPIN() {
+// Girilen 6 haneli kodu doğrulatıp taze bir müşteri oturumu alır.
+// Masanın adisyonu kapandığında sunucu eski oturumu iptal ettiği için, kod tek
+// başına yetmez: sipariş isteği koda hiç bakılmadan 401 ile geri döner. Bu
+// yüzden önce oturumu yenileriz.
+async function refreshCustomerSession(code) {
+    try {
+        const res = await fetch(`/api/masalar/${state.masaId}/verify-qr`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: code, device_id: state.deviceId })
+        });
+        if (!res.ok) return false;
+
+        const data = await res.json();
+        if (!data.valid || !data.session_token) return false;
+
+        localStorage.setItem('qr_session_token_' + state.masaId, data.session_token);
+
+        // Soketi yeni oturumla tekrar bağla ki canlı takip yeni adisyonu izlesin.
+        if (socket) {
+            try {
+                socket.auth = { token: data.session_token, masa_id: state.masaId };
+                socket.disconnect();
+                socket.connect();
+            } catch (e) { /* canlı takip kopsa da sipariş akışı sürmeli */ }
+        }
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+async function submitFirstOrderPIN() {
     const input = document.getElementById('securityPinInput');
-    if (!input || !input.value || input.value.length < 6) {
+    if (!input || !input.value || input.value.trim().length < 6) {
         showToast("⚠️ Lütfen 6 haneli güvenlik kodunu eksiksiz girin.");
         return;
     }
 
-    state.currentTotpToken = input.value.trim();
+    const code = input.value.trim();
+    const sessionReady = await refreshCustomerSession(code);
+    if (!sessionReady) {
+        showToast("⚠️ Kod doğrulanamadı. Masadaki ekranda yazan güncel kodu girin.");
+        input.value = '';
+        input.focus();
+        return;
+    }
+
+    state.currentTotpToken = code;
     closeFirstOrderPINModal();
 
     // Modal kapanınca siparişi otomatik tekrar dene
@@ -1598,19 +1869,82 @@ window.toggleGroupDetails = function (groupIndex) {
 };
 
 // CANLI SİPARİŞ TAKİP EKRANI (F5 İLE KANANMAZ + SİPARİŞ VERİLEN ÜRÜNLERİN LİSTESİ)
+// "Benim Siparişlerim" / "Masanın Tümü" görünümü.
+//
+// Sunucu her siparişi doğrulanmış müşteri oturumuna göre `is_mine` ile
+// işaretler (`Siparisler.customer_session_id`). Burada yapılan iş yalnızca
+// filtrelemedir. Ödenecek tutar HER ZAMAN masanın tamamıdır: müşteriye sadece
+// kendi kalemlerini gösterip toplamı da ona göre yazmak, hesap geldiğinde
+// sürprize yol açar.
+let orderViewMode = (function () {
+    try {
+        return localStorage.getItem('qr_order_view_mode') === 'mine' ? 'mine' : 'table';
+    } catch (e) {
+        return 'table';
+    }
+})();
+
+window.setOrderViewMode = function (mode) {
+    orderViewMode = (mode === 'mine') ? 'mine' : 'table';
+    try {
+        localStorage.setItem('qr_order_view_mode', orderViewMode);
+    } catch (e) { }
+    renderOrderTrackingUI();
+};
+
+// En son DOM'a yazilan govde. `checkActiveOrder` 3 saniyede bir calisiyor ve
+// eskiden her seferinde karti bastan kuruyordu. Iki sonucu vardi:
+//
+//   - `.tracking-scroll-list` icindeki kaydirma her 3 saniyede basa doner;
+//     adisyonu acip listeyi okumaya calisan musteri surekli yukari atilirdi
+//     (olculdu: scrollTop 120 -> 0).
+//   - Hicbir sey degismemisken bile 45 KB HTML yeniden ayristirilir.
+//
+// Uretilen govde bir oncekiyle ayniysa DOM'a hic dokunulmuyor. Govde gercekten
+// degistiginde de kaydirma konumu korunuyor.
+let lastTrackingHTML = '';
+
+function applyTrackingHTML(container, html) {
+    if (html === lastTrackingHTML) return;
+
+    const oncekiListe = container.querySelector('.tracking-scroll-list');
+    const kaydirma = oncekiListe ? oncekiListe.scrollTop : 0;
+
+    container.innerHTML = html;
+    lastTrackingHTML = html;
+
+    if (kaydirma > 0) {
+        const yeniListe = container.querySelector('.tracking-scroll-list');
+        if (yeniListe) yeniListe.scrollTop = kaydirma;
+    }
+}
+
 function renderOrderTrackingUI() {
     const container = document.getElementById('orderTrackingContainer');
     if (!container) return;
 
-    const orders = state.activeOrders && state.activeOrders.length > 0 ? state.activeOrders : (state.currentOrder ? [state.currentOrder] : []);
-    if (orders.length === 0) {
+    const allOrders = state.activeOrders && state.activeOrders.length > 0 ? state.activeOrders : (state.currentOrder ? [state.currentOrder] : []);
+    if (allOrders.length === 0) {
         container.style.display = 'none';
+        lastTrackingHTML = '';
         return;
     }
 
     container.style.display = 'block';
 
-    const totalAdisyon = state.genelToplam || orders.reduce((acc, o) => acc + (o.toplam_tutar || 0), 0);
+    // Sunucu sahiplik bilgisini yalnızca doğrulanmış müşteri oturumu için
+    // hesaplar. `is_mine` hiç gelmiyorsa (oturumsuz görüntüleme) sekmeler
+    // gösterilmez; olmayan bir ayrımı varmış gibi sunmak yanıltıcı olur.
+    const ownershipKnown = allOrders.some(o => o.is_mine === true || o.is_mine === false);
+    const myOrders = allOrders.filter(o => o.is_mine === true);
+    const showMine = ownershipKnown && orderViewMode === 'mine';
+    const orders = showMine ? myOrders : allOrders;
+
+    // Toplam her iki görünümde de masanın tamamı.
+    const totalAdisyon = state.genelToplam || allOrders.reduce((acc, o) => acc + (o.toplam_tutar || 0), 0);
+    const myTotal = (typeof state.benimToplamim === 'number')
+        ? state.benimToplamim
+        : myOrders.reduce((acc, o) => acc + (o.toplam_tutar || 0), 0);
     const totalAdisyonStr = (totalAdisyon % 1 === 0) ? totalAdisyon.toFixed(0) : totalAdisyon.toFixed(2);
 
     const chevronDownSVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle;"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
@@ -1618,19 +1952,19 @@ function renderOrderTrackingUI() {
 
     // KAPANABİLİR / AÇILABİLİR KART KONTROLÜ (KAPALI HALDE)
     if (isTrackingCollapsed) {
-        container.innerHTML = `
-            <div class="tracking-card" style="padding: 10px 14px; cursor: pointer; border-radius: 14px;" onclick="toggleTrackingUI()">
+        applyTrackingHTML(container, `
+            <div class="tracking-card tracking-toggle" style="padding: 10px 14px; cursor: pointer; border-radius: 14px;" onclick="toggleTrackingUI()">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div style="display:flex; align-items:center; gap: 8px;">
                         <span style="font-size: 1.1rem;">📋</span>
                         <span style="font-size: 0.92rem; font-weight: 700; color: var(--text-primary);">
-                            Adisyon (${orders.length} Sipariş • ${totalAdisyonStr} ₺)
+                            Adisyon (${allOrders.length} Sipariş • ${totalAdisyonStr} ₺)
                         </span>
                     </div>
                     <span>${chevronDownSVG}</span>
                 </div>
             </div>
-        `;
+        `);
         return;
     }
 
@@ -1761,24 +2095,63 @@ function renderOrderTrackingUI() {
         `;
     });
 
+    const tabButtonStyle = (isActive) => `
+        flex:1; padding:7px 6px; border-radius:8px; font-size:0.8rem; font-weight:800;
+        cursor:pointer; border:1px solid ${isActive ? 'var(--primary)' : 'rgba(255,255,255,0.12)'};
+        background:${isActive ? 'rgba(245,158,11,0.18)' : 'rgba(255,255,255,0.04)'};
+        color:${isActive ? 'var(--primary)' : '#94a3b8'};
+    `;
+
+    const viewTabsHTML = ownershipKnown ? `
+        <div style="display:flex; gap:6px; margin-top:12px;">
+            <button type="button" style="${tabButtonStyle(!showMine)}" onclick="setOrderViewMode('table')">
+                👥 Masanın Tümü
+            </button>
+            <button type="button" style="${tabButtonStyle(showMine)}" onclick="setOrderViewMode('mine')">
+                🙋 Benim Siparişlerim
+            </button>
+        </div>
+    ` : '';
+
+    // Kisisel gorunumde hicbir siparis yoksa kart bos gorunmemeli: neden bos
+    // oldugu ve masanin tamamina nasil donulecegi yazili olmali.
+    const emptyMineHTML = `
+        <div style="text-align:center; padding:18px 8px; color:#94a3b8; font-size:0.85rem; line-height:1.5;">
+            <div style="font-size:1.6rem; margin-bottom:6px;">🙋</div>
+            Bu cihazdan henüz sipariş verilmedi.<br>
+            <span style="font-size:0.78rem; opacity:0.8;">Masadaki diğer siparişler için “Masanın Tümü” sekmesine geçin.</span>
+        </div>
+    `;
+
+    const myTotalStr = (myTotal % 1 === 0) ? myTotal.toFixed(0) : myTotal.toFixed(2);
+    const myTotalHTML = ownershipKnown ? `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 6px; font-size:0.82rem; color:#94a3b8;">
+            <span>Bu cihazdan verilen:</span>
+            <span style="font-weight:800; color:#cbd5e1; white-space:nowrap;">${myTotalStr} ₺</span>
+        </div>
+    ` : '';
+
     let html = `
         <div class="tracking-card" style="padding-bottom: 8px;">
             ${currentStatusHTML}
 
+            ${viewTabsHTML}
+
             <!-- MASANIN TÜM ADİSYON DÖKÜMÜ -->
             <div style="margin-top: 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px;">
                 <div class="tracking-scroll-list" style="max-height: 230px;">
-                    ${ordersListHTML}
+                    ${ordersListHTML || emptyMineHTML}
                 </div>
 
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.12); padding-top: 10px; font-weight: 800;">
                     <span style="font-size: 0.95rem;">Genel Adisyon Toplamı:</span>
                     <span style="color: #10b981; font-size: 1.15rem; white-space: nowrap;">${totalAdisyonStr} ₺</span>
                 </div>
+                ${myTotalHTML}
             </div>
 
             <!-- KUTUCUKLARIN SAĞ ALTTAKİ KAPANIR OK BUTONU -->
-            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 6px; cursor: pointer;" onclick="toggleTrackingUI()">
+            <div class="tracking-toggle" style="display: flex; justify-content: space-between; align-items: center; padding-top: 6px; cursor: pointer;" onclick="toggleTrackingUI()">
                 <span style="font-size: 0.78rem; color: #94a3b8; font-weight: 700;">💡 Adisyonu küçültmek için tıklayın</span>
                 <span style="padding: 4px;" title="Adisyonu Gizle">
                     ${chevronUpSVG}
@@ -1787,12 +2160,13 @@ function renderOrderTrackingUI() {
         </div>
     `;
 
-    container.innerHTML = html;
+    applyTrackingHTML(container, html);
 }
 
 function dismissTrackingUI() {
     state.currentOrder = null;
     document.getElementById('orderTrackingContainer').style.display = 'none';
+    lastTrackingHTML = '';
 }
 
 function showToast(message) {

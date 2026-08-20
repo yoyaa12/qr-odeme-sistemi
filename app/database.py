@@ -184,13 +184,51 @@ def execute_non_query(query, params=()):
         if close_after:
             conn.close()
 
+def execute_update(query, params=()):
+    """
+    Koşullu (atomik) UPDATE/DELETE sorgularını çalıştırır ve ETKİLENEN SATIR
+    SAYISINI döner.
+
+    `execute_non_query` sorgudan hemen sonra SCOPE_IDENTITY() okuduğu için
+    `cursor.rowcount` değeri kaybolur. Bir `WHERE ... AND stok_miktari >= ?`
+    güncellemesinin gerçekten satır etkileyip etkilemediğini anlamak için bu
+    ayrı yol gereklidir; aksi halde koşulu sağlamayan sorgu sessizce hiçbir şey
+    yapmaz ve çağıran bunu başarı sanar.
+
+    Sürücü satır sayısını bildiremezse -1 döner; çağıran bunu "bilinmiyor"
+    olarak yorumlamalı, "0 satır" ile karıştırmamalıdır.
+    """
+    t_conn = _transaction_conn.get()
+    close_after = False
+
+    if t_conn:
+        conn = t_conn
+    else:
+        conn, _driver_type = get_db_connection()
+        close_after = True
+
+    cursor = None
+    try:
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        rowcount = cursor.rowcount
+        return -1 if rowcount is None else int(rowcount)
+    finally:
+        if cursor:
+            cursor.close()
+        if close_after:
+            conn.close()
+
 class DatabaseSession:
     """Dependency Injection için veritabanı oturum arayüzü"""
     def execute_query(self, query, params=(), fetch_all=True, fetch_one=False):
         return execute_query(query, params, fetch_all, fetch_one)
-        
+
     def execute_non_query(self, query, params=()):
         return execute_non_query(query, params)
+
+    def execute_update(self, query, params=()):
+        return execute_update(query, params)
 
 def get_db():
     """FastAPI endpointleri ve repository'ler için DB dependency'si"""

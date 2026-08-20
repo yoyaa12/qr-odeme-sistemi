@@ -17,6 +17,7 @@ from app.auth.tokens import (
 from app.enums import UserRole
 from app.repositories.auth_repo import AuthRepository
 from app.schemas.auth import GarsonPinVerifyModel, KullaniciResponse, LoginModel
+from app.schemas.common import GenelBasariliResponse
 from typing import List
 
 
@@ -24,6 +25,13 @@ _DUMMY_PASSWORD_HASH = hash_password(
     "dummy-password-used-only-for-timing-equalization",
     salt=b"\x00" * 16,
 )
+
+# Müşteri QR oturumunun ömrü. Kayan pencere: her kullanımda yeniden bu kadar
+# ileri atılır, böylece masada oturan müşterinin oturumu yemek ortasında bitmez.
+CUSTOMER_SESSION_TTL_MINUTES = 90
+# Oturum bu kadar eskimeden yenileme yazılmaz; aksi halde her istek bir UPDATE
+# üretirdi.
+_SESSION_REFRESH_AFTER_MINUTES = 15
 
 class AuthService:
     def __init__(self, repo: AuthRepository = Depends()):
@@ -164,13 +172,13 @@ class AuthService:
         garsonlar = self.repo.get_all_garsonlar()
         return [KullaniciResponse(**g) for g in garsonlar] if garsonlar else []
 
-    def ban_device(self, device_id: str):
+    def ban_device(self, device_id: str) -> GenelBasariliResponse:
         existing = self.repo.get_banned_device(device_id)
         if existing:
-            return {"status": "success", "message": "Cihaz zaten yasaklı."}
-        
+            return GenelBasariliResponse(status="success", message="Cihaz zaten yasaklı.")
+
         self.repo.ban_device(device_id)
-        return {"status": "success", "message": "Cihaz başarıyla yasaklandı."}
+        return GenelBasariliResponse(status="success", message="Cihaz başarıyla yasaklandı.")
 
     def create_customer_session(self, masa_id: int, device_id: Optional[str] = None) -> str:
         # Generate a random 64-character hex token
@@ -178,8 +186,7 @@ class AuthService:
         # Only the hash is stored, so a database read cannot reveal live tokens.
         token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
-        # 90 minutes expiration
-        expires_at = datetime.now() + timedelta(minutes=90)
+        expires_at = datetime.now() + timedelta(minutes=CUSTOMER_SESSION_TTL_MINUTES)
 
         self.repo.create_customer_session(token_hash, masa_id, expires_at, device_id)
         return raw_token
@@ -189,4 +196,34 @@ class AuthService:
             return None
 
         token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
-        return self.repo.get_active_customer_session(token_hash)
+        session = self.repo.get_active_customer_session(token_hash)
+        if not session:
+            return None
+
+        self._extend_session_if_stale(token_hash, session)
+        return session
+
+    def _extend_session_if_stale(self, token_hash: str, session: dict) -> None:
+        """Kayan oturum ömrü.
+
+        Masada oturmaya devam eden müşteri, oturumunu sadece kullanarak canlı
+        tutar; masadan kalkıp giden birinin oturumu ise yenilenmediği için kendi
+        kendine söner. Sabit ömürde ikisi ayırt edilemiyordu.
+
+        Yazma yalnızca oturum `_SESSION_REFRESH_AFTER_MINUTES` kadar
+        eskidiğinde yapılır, yoksa her istek bir UPDATE üretirdi. Sürücüden
+        `datetime` dışında bir değer gelirse (test sahteleri, beklenmedik tip)
+        yenileme sessizce atlanır: oturum yine de sabit ömrüyle geçerlidir.
+        """
+        expires_at = session.get("expires_at")
+        if not isinstance(expires_at, datetime):
+            return
+
+        full_ttl = timedelta(minutes=CUSTOMER_SESSION_TTL_MINUTES)
+        remaining = expires_at - datetime.now()
+        if remaining > full_ttl - timedelta(minutes=_SESSION_REFRESH_AFTER_MINUTES):
+            return
+
+        new_expiry = datetime.now() + full_ttl
+        self.repo.touch_customer_session(token_hash, new_expiry)
+        session["expires_at"] = new_expiry

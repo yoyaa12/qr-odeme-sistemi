@@ -12,6 +12,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
+const vm = require('node:vm');
 
 const repositoryRoot = path.resolve(__dirname, '..', '..');
 
@@ -169,23 +170,69 @@ test('waiting for a staff session cannot hang forever', () => {
     );
 });
 
-test('no product name reaches an HTML sink unencoded', () => {
+test('no server-supplied free text reaches an HTML sink unencoded', () => {
     // Yalnizca HTML uretilen satirlar denetlenir. appConfirm/appAlert mesajlari
     // innerText ile yazildigi icin duz metin baglamidir ve XSS sink'i degildir.
-    const pattern = /\$\{\s*(?:item|d|grp|group)\.urun_adi\s*\}/;
+    //
+    // Bu test onceden yalnizca `item|d|grp|group.urun_adi` kalibini ariyordu.
+    // Musteri menusundeki kartlar degiskeni `prod` ve `cat` olarak adlandirdigi
+    // icin sekiz sink denetimin disinda kalmisti; `gorsel_url` de hic kapsanmiyordu.
+    // Sonuc: yoneticinin girdigi bir urun adi, QR okutan her musterinin
+    // tarayicisinda calisabilen bir `onerror` niteligine donusebiliyordu.
+    // Kalip artik degisken adina bakmiyor, alan adina bakiyor.
+    const alanlar = 'urun_adi|kategori_adi|gorsel_url|aciklama|urun_notu|masa_no|garson_adi';
+    const pattern = new RegExp(`\\$\\{\\s*([A-Za-z_$][\\w$]*)\\.(${alanlar})\\s*(\\|\\|[^}]*)?\\}`, 'g');
 
     for (const file of ['static/js/app.js', 'static/js/waiter.js',
-                        'static/js/kitchen.js', 'static/js/kasa.js']) {
-        const offenders = stripComments(read(file))
-            .split('\n')
-            .map((line, index) => ({ line, lineNo: index + 1 }))
-            .filter(({ line }) => pattern.test(line) && /<[a-zA-Z/]/.test(line));
+                        'static/js/kitchen.js', 'static/js/kasa.js', 'static/js/admin.js']) {
+        const offenders = [];
+
+        stripComments(read(file)).split('\n').forEach((line, index) => {
+            if (!/<[a-zA-Z/]/.test(line)) return;
+            pattern.lastIndex = 0;
+            let match;
+            while ((match = pattern.exec(line)) !== null) {
+                const alan = `${match[1]}.${match[2]}`;
+                const oncesi = line.slice(0, match.index);
+                // `escapeHtml(...)` metin baglami icin, `safeImageUrl(...)` ise
+                // `src` gibi URL baglamlari icin kabul edilir.
+                if (oncesi.includes(`escapeHtml(${alan}`)) continue;
+                if (oncesi.includes(`safeImageUrl(${alan}`)) continue;
+                offenders.push(`${index + 1}: ${alan}`);
+            }
+        });
 
         assert.deepEqual(
-            offenders.map(o => o.lineNo),
+            offenders,
             [],
-            `${file}: HTML icine escape edilmemis urun_adi girmis`
+            `${file}: HTML icine escape edilmemis sunucu metni girmis`
         );
+    }
+});
+
+test('image urls from the admin panel are restricted to safe schemes', () => {
+    // `src` bir URL baglami: kacis, oznitelikten kacmayi engeller ama
+    // `javascript:` veya protokol-goreli `//evil.com` gibi degerleri engellemez.
+    const source = read('static/js/app.js');
+    assert.match(source, /function safeImageUrl\(/);
+
+    const sandbox = {
+        escapeHtml: value => String(value ?? '').replace(/[&<>"']/g, character => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[character]))
+    };
+    const govde = source.slice(source.indexOf('function safeImageUrl('));
+    vm.createContext(sandbox);
+    new vm.Script(govde.slice(0, govde.indexOf('\n}') + 2)).runInContext(sandbox);
+
+    // İzin verilenler
+    assert.equal(sandbox.safeImageUrl('/static/img/a.png'), '/static/img/a.png');
+    assert.equal(sandbox.safeImageUrl('https://cdn.example/a.png'), 'https://cdn.example/a.png');
+
+    // Reddedilenler
+    for (const kotu of ['javascript:alert(1)', 'data:text/html,<script>',
+                        '//evil.com/a.png', '/\\evil.com/a.png', 'x" onerror="kotu']) {
+        assert.equal(sandbox.safeImageUrl(kotu), '', `reddedilmeli: ${kotu}`);
     }
 });
 

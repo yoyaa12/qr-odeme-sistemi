@@ -298,6 +298,23 @@ async def on_durum_guncellendi(payload):
             pass
 
 
+@event_bus.subscribe("stok_guncellendi")
+async def on_stok_guncellendi(payload):
+    """Stok adedini bağlı tüm istemcilere duyurur (oda ayrımı yok).
+
+    Menüdeki "Son X Adet" / "Tükendi" rozetleri yalnızca sayfa açılışında ve
+    dakikalık tazelemede güncelleniyordu, bu yüzden başka bir masanın verdiği
+    sipariş komşu masanın ekranına bir dakikaya kadar yansımıyordu.
+
+    Payload yalnızca `urun_id` ve `stok_miktari` taşır; ikisi de kimlik
+    gerektirmeyen `GET /api/urunler` üzerinden zaten herkese açıktır. Bu yüzden
+    müşteri masa odalarına ayrı ayrı yayın yapmak yerine tek genel yayın
+    yeterlidir: masa odasında olmayan (henüz QR okutmamış) müşterinin menüsü de
+    canlı kalmalıdır.
+    """
+    await sio.emit("stok_guncellendi", payload)
+
+
 @event_bus.subscribe("masa_temizlendi")
 async def on_masa_temizlendi(payload):
     await sio.emit("masa_temizlendi", payload, room="staff")

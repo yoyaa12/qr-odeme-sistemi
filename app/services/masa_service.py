@@ -1,5 +1,5 @@
 import hashlib
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import Depends, HTTPException, status
 
@@ -9,7 +9,12 @@ from app.repositories.masa_repo import MasaRepository
 from app.repositories.siparis_repo import SiparisRepository
 from app.services.auth_service import AuthService
 from app.services.siparis_service import TABLE_MOVES_MAP
-from app.schemas.tables import MasaEkleModel, MasaResponse, QRDogrulamaResponse
+from app.schemas.tables import (
+    DinamikQRResponse,
+    MasaEkleModel,
+    MasaResponse,
+    QRDogrulamaResponse,
+)
 from app.database import db_transaction
 from app.core.totp_service import generate_secret_key, generate_dynamic_token, get_seconds_remaining, verify_dynamic_token
 from app.core.socket_manager import get_browsing_tables
@@ -30,13 +35,13 @@ class MasaService:
             m.secim_durumu = browsing.get(m.id)
         return masalar
     
-    def add_masa(self, data: MasaEkleModel):
+    def add_masa(self, data: MasaEkleModel) -> Optional[int]:
         qr_code = f"MASA_{data.masa_no.upper().replace(' ', '_')}"
         with db_transaction():
             inserted_id = self.repo.create(data.masa_no, qr_code)
         return inserted_id
 
-    def delete_masa(self, masa_id: int):
+    def delete_masa(self, masa_id: int) -> None:
         with db_transaction():
             self.repo.delete(masa_id)
 
@@ -52,27 +57,32 @@ class MasaService:
                 self.repo.update_totp_secret(masa_id, totp_secret)
         return totp_secret
 
-    def get_dynamic_qr_info(self, masa_id: int) -> dict:
+    def get_dynamic_qr_info(self, masa_id: int) -> Optional[DinamikQRResponse]:
+        """Tek masanın o an geçerli dinamik QR bilgisi.
+
+        Masa yoksa `None` döner; controller bunu HTTP 404'e çevirir. Boş bir
+        sözlük dönmek, istemcinin ekrana "undefined" basmasına yol açıyordu.
+        """
         masa = self.repo.get_by_id(masa_id)
         if not masa:
-            return {}
-            
+            return None
+
         totp_secret = self.get_or_create_totp_secret(masa_id)
         token = generate_dynamic_token(totp_secret)
-        remaining = get_seconds_remaining()
-        
-        return {
-            "masa_id": masa_id,
-            "masa_no": masa.get("masa_no"),
-            "token": token,
-            "remaining_seconds": remaining,
-            "qr_url": f"/m/{masa_id}?token={token}"
-        }
 
-    def get_all_dynamic_qrs(self) -> dict:
+        return DinamikQRResponse(
+            masa_id=masa_id,
+            masa_no=masa["masa_no"],
+            token=token,
+            remaining_seconds=get_seconds_remaining(),
+            qr_url=f"/m/{masa_id}?token={token}",
+        )
+
+    def get_all_dynamic_qrs(self) -> Dict[int, DinamikQRResponse]:
+        """Kasa ekranı için tüm masaların canlı QR bilgisi, masa id'sine göre."""
         masalar = self.repo.get_all()
         remaining = get_seconds_remaining()
-        result = {}
+        result: Dict[int, DinamikQRResponse] = {}
         for m in masalar:
             m_id = m['id']
             secret = m.get('totp_secret')
@@ -81,13 +91,13 @@ class MasaService:
                 with db_transaction():
                     self.repo.update_totp_secret(m_id, secret)
             token = generate_dynamic_token(secret)
-            result[m_id] = {
-                "masa_id": m_id,
-                "masa_no": m.get("masa_no"),
-                "token": token,
-                "remaining_seconds": remaining,
-                "qr_url": f"/m/{m_id}?token={token}"
-            }
+            result[m_id] = DinamikQRResponse(
+                masa_id=m_id,
+                masa_no=m["masa_no"],
+                token=token,
+                remaining_seconds=remaining,
+                qr_url=f"/m/{m_id}?token={token}",
+            )
         return result
 
     def verify_dynamic_qr_token(self, masa_id: int, token: str, mark_as_used: bool = False) -> bool:

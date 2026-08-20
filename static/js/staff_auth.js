@@ -264,6 +264,7 @@
         // gorebilmesi icin istek token ile gonderilir.
         if (pathname === '/api/masalar' && method === 'GET') return true;
         if (pathname === '/api/masalar/move' && method === 'POST') return true;
+        if (pathname === '/api/masalar/move-items' && method === 'POST') return true;
         if (/^\/api\/masalar\/\d+\/clear$/.test(pathname) && method === 'POST') return true;
         if (pathname === '/api/masalar/all-dynamic-qrs' && method === 'GET') return true;
         if (pathname === '/api/masalar/all-tahsilatlar' && method === 'GET') return true;

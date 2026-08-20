@@ -6,7 +6,7 @@
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Lezzet Dünyası Restoran POS Otomasyonu</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=22">
+    <link rel="stylesheet" href="/static/css/style.css?v=26">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 
@@ -341,7 +341,7 @@
                 istediğiniz hedef masayı seçiniz:
             </p>
 
-            <div style="margin-bottom: 20px;">
+            <div style="margin-bottom: 14px;">
                 <label
                     style="font-size:0.85rem; font-weight:700; color:var(--text-secondary); margin-bottom:6px; display:block;">Hedef
                     Masa:</label>
@@ -351,10 +351,31 @@
                 </select>
             </div>
 
+            <!-- AKTARIM KAPSAMI. Bu modal eskiden yalnizca hedef masa soruyor ve
+                 her zaman masanin tamamini tasiyordu; adisyon tablosunda urun
+                 secmis olmak hicbir sey degistirmiyordu. -->
+            <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                <button type="button" id="btnMoveScopeAll" class="btn-add"
+                    style="flex:1; justify-content: center; background: #3b82f6; color: #fff;"
+                    onclick="setMoveScope('all')">
+                    📦 Tüm Masa
+                </button>
+                <button type="button" id="btnMoveScopeItems" class="btn-add"
+                    style="flex:1; justify-content: center; background: rgba(255,255,255,0.1); color: #cbd5e1;"
+                    onclick="setMoveScope('items')">
+                    🍽️ Seçili Ürünler
+                </button>
+            </div>
+
+            <div id="moveTableItemsContainer"
+                style="height: 150px; min-height: 150px; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 10px; margin-bottom: 14px; box-sizing: border-box;">
+                <!-- JS ile doldurulur -->
+            </div>
+
             <button class="btn-add"
                 style="width:100%; justify-content:center; padding:14px; font-size:1rem; background:linear-gradient(135deg, #3b82f6, #1d4ed8);"
                 onclick="confirmMoveTable()">
-                ✅ Masayı Hedef Masaya Taşı
+                ✅ Aktarımı Tamamla
             </button>
         </div>
     </div>
@@ -474,8 +495,8 @@
 
     <script src="/static/js/security.js?v=1"></script>
     <script src="/static/js/ui_confirm.js?v=2"></script>
-    <script src="/static/js/staff_auth.js?v=3"></script>
-    <script src="/static/js/kasa.js?v=62"></script>
+    <script src="/static/js/staff_auth.js?v=4"></script>
+    <script src="/static/js/kasa.js?v=66"></script>
 </body>
 
 </html>

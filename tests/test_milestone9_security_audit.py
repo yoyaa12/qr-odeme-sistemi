@@ -1,5 +1,4 @@
 import hashlib
-import time
 import unittest
 from unittest.mock import MagicMock, patch
 from fastapi import HTTPException
@@ -7,27 +6,18 @@ from fastapi.security import HTTPAuthorizationCredentials
 
 from app.auth.dependencies import (
     get_current_staff,
-    get_current_customer,
     get_current_user_or_customer,
     require_roles,
 )
 from app.auth.models import StaffPrincipal
-from app.auth.passwords import hash_password
 from app.auth.tokens import create_access_token
 from app.enums import (
     OrderAction,
     OrderStatus,
-    PaymentMethod,
-    PaymentStatus,
     TableStatus,
-    TokenType,
     UserRole,
 )
-from app.schemas.orders import (
-    DurumGuncelleModel,
-    SiparisItemModel,
-    SiparisOlusturModel,
-)
+from app.schemas.orders import SiparisItemModel
 from app.services.auth_service import AuthService
 from app.services.order_authorization import (
     enforce_order_status_role,
@@ -145,25 +135,13 @@ class Milestone9SecurityAuditTests(unittest.TestCase):
 
     # -------------------------------------------------------------------------
     # Scenario 8: Customer Session Table 5 -> Table 6 active order -> 403 (IDOR blocked)
+    #
+    # Moved to tests/test_customer_session_authorization.py. The version that
+    # lived here raised the expected HTTPException itself inside assertRaises
+    # instead of calling the router, so it passed even with the ownership check
+    # deleted from app/api/v1/endpoints/masalar.py. The replacement drives the
+    # real ASGI application and fails when the check is removed.
     # -------------------------------------------------------------------------
-    def test_08_customer_session_for_table_5_accessing_table_6_rejected(self):
-        raw_token = "b" * 64
-        self.mock_auth_repo.get_active_customer_session.return_value = {
-            "id": 10,
-            "masa_id": 5,
-            "device_id": "dev123",
-            "expires_at": "2099-01-01",
-        }
-
-        creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=raw_token)
-        actor = get_current_user_or_customer(creds, self.mock_auth_repo)
-
-        requested_masa_id = 6
-        # Simulate router IDOR check in /masalar/{masa_id}/aktif-siparis
-        if isinstance(actor, dict) and actor["masa_id"] != requested_masa_id:
-            with self.assertRaises(HTTPException) as ctx:
-                raise HTTPException(status_code=403, detail="Bu masanın siparişlerini görüntüleme yetkiniz yok.")
-            self.assertEqual(ctx.exception.status_code, 403)
 
     # -------------------------------------------------------------------------
     # Scenario 9: No token -> GET /api/masalar/{id}/aktif-siparis -> 401
@@ -245,23 +223,11 @@ class Milestone9SecurityAuditTests(unittest.TestCase):
 
     # -------------------------------------------------------------------------
     # Scenario 15: Client manipulates table_id on order submission -> 403
+    #
+    # Moved to tests/test_customer_session_authorization.py for the same reason
+    # as scenario 8: the version here asserted that `raise HTTPException(403)`
+    # raises an HTTPException, which is true regardless of the application.
     # -------------------------------------------------------------------------
-    def test_15_order_submission_table_id_mismatch_rejected(self):
-        customer_session = {"id": 1, "masa_id": 3, "session_token": "token123"}
-        malicious_order_data = SiparisOlusturModel(
-            masa_id=7, # Trying to order to Table 7 with Table 3's session
-            toplam_tutar=100.0,
-            odeme_yontemi=PaymentMethod.POS,
-            urunler=[SiparisItemModel(urun_id=1, adet=1, birim_fiyat=100.0, urun_notu="")],
-        )
-
-        if customer_session["masa_id"] != malicious_order_data.masa_id:
-            with self.assertRaises(HTTPException) as ctx:
-                raise HTTPException(
-                    status_code=403,
-                    detail="Bu oturum ile sadece yetkili olduğunuz masaya sipariş verebilirsiniz.",
-                )
-            self.assertEqual(ctx.exception.status_code, 403)
 
     # -------------------------------------------------------------------------
     # Scenario 16: Table Clear -> Session Revocation and TOTP Secret Rotation

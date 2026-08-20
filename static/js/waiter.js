@@ -465,8 +465,7 @@ function renderWaiterDashboard() {
                 total_amount: 0,
                 has_pending_approval: false,
                 has_cash_pending: false,
-                has_ready: false,
-                combined_items: {}
+                has_ready: false
             };
         }
 
@@ -478,21 +477,6 @@ function renderWaiterDashboard() {
         if (order.siparis_durumu === 'garson_onayi_bekliyor') group.has_pending_approval = true;
         if (order.siparis_durumu === 'nakit_bekliyor' || (order.odeme_yontemi === 'nakit' && order.odeme_durumu !== 'odendi')) group.has_cash_pending = true;
         if (order.siparis_durumu === 'hazir') group.has_ready = true;
-
-        (order.detaylar || []).forEach(item => {
-            const key = item.urun_adi + '_' + (item.urun_notu || '');
-            if (!group.combined_items[key]) {
-                group.combined_items[key] = {
-                    urun_adi: item.urun_adi,
-                    adet: 0,
-                    birim_fiyat: item.birim_fiyat,
-                    ara_toplam: 0,
-                    urun_notu: item.urun_notu || ''
-                };
-            }
-            group.combined_items[key].adet += item.adet;
-            group.combined_items[key].ara_toplam += item.ara_toplam;
-        });
     });
 
     let html = '';
@@ -552,11 +536,40 @@ window.openMasaDetailWithPin = function (masaId) {
     });
 };
 
+// Masa detayını yalnızca gizler, garson kimliğini korur.
+// Detaydan sipariş düzenlemeye geçerken kullanılır: kimliği burada silmek
+// "Değişiklikleri Kaydet" butonunu her seferinde sessizce çalışmaz hâle
+// getiriyordu.
+window.hideMasaDetailModal = function () {
+    const modal = document.getElementById('masaDetailModal');
+    if (modal) modal.classList.remove('active');
+};
+
 window.closeMasaDetailModal = function () {
-    document.getElementById('masaDetailModal').classList.remove('active');
+    hideMasaDetailModal();
     activeGarson = null;
     activeDetailMasaId = null;
 };
+
+// Fiş başlığındaki durum rozeti. Garsonun tek bakışta "bu fişe ne yapmam
+// gerekiyor" sorusunu yanıtlar.
+function getWaiterOrderStatusLabel(durum) {
+    switch (durum) {
+        case 'garson_onayi_bekliyor':
+            return { text: '⏳ Onay Bekliyor', color: '#fbbf24' };
+        case 'nakit_bekliyor':
+            return { text: '💵 Nakit Bekliyor', color: '#f59e0b' };
+        case 'hazir':
+            return { text: '✅ Servise Hazır', color: '#10b981' };
+        case 'hazirlaniyor':
+            return { text: '👨‍🍳 Hazırlanıyor', color: '#a855f7' };
+        case 'odendi_mutfakta':
+        case 'garson_onayladi_mutfakta':
+            return { text: '🔥 Mutfakta', color: '#a855f7' };
+        default:
+            return { text: 'İşlemde', color: '#94a3b8' };
+    }
+}
 
 function openMasaDetail(masaId) {
     masaId = toPositiveInteger(masaId);
@@ -582,7 +595,6 @@ function openMasaDetail(masaId) {
     let hasPendingApproval = false;
     let hasCashPending = false;
     let hasReady = false;
-    const combinedItems = {};
     const deviceIds = new Set();
 
     activeOrders.forEach(order => {
@@ -591,16 +603,22 @@ function openMasaDetail(masaId) {
         if (order.siparis_durumu === 'garson_onayi_bekliyor') hasPendingApproval = true;
         if (order.siparis_durumu === 'nakit_bekliyor' || (order.odeme_yontemi === 'nakit' && order.odeme_durumu !== 'odendi')) hasCashPending = true;
         if (order.siparis_durumu === 'hazir') hasReady = true;
-
-        (order.detaylar || []).forEach(item => {
-            const key = item.urun_adi + '_' + (item.urun_notu || '');
-            if (!combinedItems[key]) {
-                combinedItems[key] = { urun_adi: item.urun_adi, adet: 0, birim_fiyat: item.birim_fiyat, ara_toplam: 0, urun_notu: item.urun_notu || '' };
-            }
-            combinedItems[key].adet += item.adet;
-            combinedItems[key].ara_toplam += item.ara_toplam;
-        });
     });
+
+    // Garson paneli "şu an ne taşınacak" sorusunu yanıtlar, masanın adisyonunu
+    // değil. Kalemler bu yüzden fiş bazında ve yalnızca teslim edilmemiş
+    // siparişler için listelenir.
+    //
+    // Önceden masanın tüm aktif siparişleri tek bir listede toplanıyordu:
+    // masa 5 çorba söyleyip teslim aldıktan sonra 1 çorba daha söylediğinde
+    // garson "6x Yayla Çorbası" görüyor ve 6 tabak taşıması gerektiğini
+    // sanıyordu. Teslim edilmiş kalemler kasada zaten görünür.
+    const serviceOrders = activeOrders.filter(o => o.siparis_durumu !== 'teslim_edildi');
+    const deliveredOrders = activeOrders.filter(o => o.siparis_durumu === 'teslim_edildi');
+    const deliveredItemCount = deliveredOrders.reduce(
+        (sum, o) => sum + (o.detaylar || []).reduce((inner, d) => inner + (parseInt(d.adet) || 0), 0),
+        0
+    );
 
     let html = '';
     if (!hasPendingApproval) {
@@ -611,21 +629,47 @@ function openMasaDetail(masaId) {
         `;
     }
 
-    // Order items
-    if (Object.keys(combinedItems).length > 0) {
-        html += `<div style="background: rgba(255,255,255,0.05); border-radius: 8px; padding: 10px; margin-bottom: 15px; max-height: 200px; overflow-y: auto;">`;
-        Object.values(combinedItems).forEach(item => {
+    // Servis bekleyen kalemler - her fiş kendi kutusunda
+    if (serviceOrders.length > 0) {
+        html += `<div style="max-height: 260px; overflow-y: auto; margin-bottom: 15px;">`;
+        serviceOrders.forEach(order => {
+            const durum = getWaiterOrderStatusLabel(order.siparis_durumu);
+            const saat = order.olusturma_tarihi ? String(order.olusturma_tarihi).substring(0, 5) : '';
+            const orderItemCount = (order.detaylar || []).reduce((sum, d) => sum + (parseInt(d.adet) || 0), 0);
+
             html += `
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;">
-                    <div>
-                        <div style="font-weight: 700; color:#e5e7eb;">${item.adet}x ${escapeHtml(item.urun_adi)}</div>
-                        ${item.urun_notu ? `<div style="font-size: 0.75rem; color:#9ca3af;">Not: ${escapeHtml(item.urun_notu)}</div>` : ''}
+                <div style="background: rgba(255,255,255,0.05); border:1px solid ${durum.color}44; border-left:3px solid ${durum.color}; border-radius: 8px; padding: 10px; margin-bottom: 10px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px;">
+                        <span style="font-size:0.78rem; font-weight:800; color:#cbd5e1;">
+                            📦 Fiş #${escapeHtml(order.id)}${saat ? ` · ${escapeHtml(saat)}` : ''} · ${orderItemCount} ürün
+                        </span>
+                        <span style="font-size:0.72rem; font-weight:800; color:${durum.color};">${durum.text}</span>
                     </div>
-                    ${!hasPendingApproval ? `<div style="font-weight: bold; color: #fbbf24;">${item.ara_toplam.toFixed(2)} ₺</div>` : ''}
-                </div>
             `;
+
+            (order.detaylar || []).forEach(item => {
+                html += `
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 4px;">
+                        <div>
+                            <div style="font-weight: 700; color:#e5e7eb;">${item.adet}x ${escapeHtml(item.urun_adi)}</div>
+                            ${item.urun_notu ? `<div style="font-size: 0.75rem; color:#9ca3af;">Not: ${escapeHtml(item.urun_notu)}</div>` : ''}
+                        </div>
+                        ${!hasPendingApproval ? `<div style="font-weight: bold; color: #fbbf24;">${(parseFloat(item.ara_toplam) || 0).toFixed(2)} ₺</div>` : ''}
+                    </div>
+                `;
+            });
+
+            html += `</div>`;
         });
         html += `</div>`;
+    }
+
+    if (deliveredItemCount > 0) {
+        html += `
+            <div style="font-size:0.76rem; color:#94a3b8; text-align:center; margin-bottom:12px;">
+                ✅ Bu masaya daha önce ${deliveredItemCount} ürün teslim edildi (ayrıntı kasa ekranında).
+            </div>
+        `;
     }
 
     // Devices / Ban logic
@@ -656,7 +700,7 @@ function openMasaDetail(masaId) {
                 <div style="color: #60a5fa; font-weight: bold; margin-bottom: 8px; text-align: center;">Sipariş Onay Talebi Var</div>
                 <div style="display:flex; gap:10px;">
                     <button class="btn-status-action btn-success" style="flex:1; padding: 12px; font-size: 1rem;" onclick="approveTableOrdersDirect(${masaId}); closeMasaDetailModal();">✅ Onayla</button>
-                    <button class="btn-status-action btn-warning" style="flex:1; padding: 12px; font-size: 1rem;" onclick="closeMasaDetailModal(); openEditOrderModalForTable(${masaId});">✏️ Düzenle</button>
+                    <button class="btn-status-action btn-warning" style="flex:1; padding: 12px; font-size: 1rem;" onclick="hideMasaDetailModal(); openEditOrderModalForTable(${masaId});">✏️ Düzenle</button>
                 </div>
             </div>
         `;
@@ -1055,20 +1099,25 @@ window.closeEditOrderModal = function () {
 };
 
 window.saveEditedOrder = async function () {
-    if (!currentEditOrder) return;
+    // Sessiz `return` yok: bir buton hiçbir şey söylemeden hiçbir şey yapmamalı.
+    // Kaydet butonu tam olarak bu yüzden "bozuk" görünüyordu.
+    if (!currentEditOrder) {
+        showWaiterToast("⚠️ Düzenlenecek sipariş bulunamadı. Lütfen masayı yeniden açın.");
+        return;
+    }
 
     if (currentEditItems.length === 0) {
         showWaiterToast("⚠️ Siparişte en az 1 ürün bulunmalıdır.");
         return;
     }
 
-    if (!activeGarson) return;
-    const garsonName = activeGarson.garson_adi;
+    // Denetim adı artık sunucuda token'dan alınıyor; istekle gönderilen isim
+    // bağlayıcı değil. Bu yüzden `activeGarson` kaydetmenin ön koşulu değil.
+    const garsonName = (activeGarson && activeGarson.garson_adi) || 'Garson';
 
     const totalAmount = currentEditItems.reduce((acc, item) => acc + (item.adet * item.birim_fiyat), 0);
     const payload = {
         toplam_tutar: totalAmount,
-        garson_adi: garsonName,
         urunler: currentEditItems.map(i => ({
             urun_id: i.urun_id,
             adet: i.adet,

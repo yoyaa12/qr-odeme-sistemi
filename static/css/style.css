@@ -57,7 +57,7 @@
     -webkit-tap-highlight-color: transparent;
 }
 
-button, a, .product-card, .category-card-box, .btn-add-circle, .btn-qty-step, .modal-close, .modal-overlay, .size-option-card {
+button, a, .product-card, .category-card-box, .btn-add-circle, .btn-qty-step, .modal-close, .modal-overlay, .size-option-card, .tracking-toggle {
     touch-action: manipulation;
     user-select: none;
     -webkit-user-select: none;
@@ -1937,6 +1937,26 @@ textarea:focus {
     box-sizing: border-box;
 }
 
+.vega-ticket-table td.ticket-num-cell,
+.vega-ticket-table th.ticket-num-cell {
+    /* Sayısal sütunlar. `table-layout: fixed` genişliği th'den alır; son
+       sütunun sağında ekstra boşluk bırakılır, aksi halde tutarın son karakteri
+       kaydırma çubuğunun altında kalıyordu.
+
+       İnce ayırıcı çizgi: dört sütun bitişik olduğunda hangi sayının hangi
+       başlığa ait olduğu okunmuyordu. */
+    text-align: right;
+    white-space: nowrap;
+    border-left: 1px solid rgba(255, 255, 255, 0.07);
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+}
+
+.vega-ticket-table td.ticket-num-cell:last-child,
+.vega-ticket-table th.ticket-num-cell:last-child {
+    padding-right: 16px !important;
+}
+
 .vega-ticket-table td {
     padding: 6px 8px !important;
     border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
@@ -2735,20 +2755,57 @@ body.vega-kasa-body {
 }
 
 /* GRUPLANMIŞ ADİSYON VE AYRINTILAR KUTUSU STİLLERİ */
+/* Adisyon satırının ilk hücresi: [kutucuk] [ürün adı + not] [Ayrıntılar]
+   Düğme akışın içinde, ürün adının hemen ardında duruyordu; adın uzunluğu
+   değiştikçe yeri de kayıyor ve satırlar birbirini tutmuyordu. Şimdi hücrenin
+   sağ ucuna sabitlendiği için her satırda aynı x konumunda, alt alta duruyor.
+   Hücrenin içinde kaldığı için Adet/Fiyat/Durum/Toplam sütunlarıyla asla
+   çakışmaz. */
+.ticket-item-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.ticket-item-main {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.ticket-item-main>strong,
+.ticket-item-main>div {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .btn-ayrintilar-chip {
     background: rgba(99, 102, 241, 0.18);
     color: #a5b4fc;
     border: 1px solid rgba(99, 102, 241, 0.4);
     border-radius: 6px;
-    padding: 2px 8px;
-    font-size: 0.74rem;
+    font-size: 0.72rem;
     font-weight: 800;
     cursor: pointer;
     transition: transform 0.15s ease, background-color 0.15s ease;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 4px;
-    margin-left: 8px;
+    flex-shrink: 0;
+    /* Sabit kutu: metin "🔍 Ayrıntılar" ile "▲ Gizle" arasında değişiyor.
+       Yalnızca genişliği sabitlemek yetmiyordu; yükseklik de sabit olmalı,
+       aksi halde açık satırın düğmesi kapalı olandan küçük kalıyor ve
+       kullanıcı aynı noktaya ikinci kez tıkladığında düğmeyi ıskalıyordu. */
+    width: 112px;
+    height: 26px;
+    box-sizing: border-box;
+    line-height: 1;
+    padding: 0 8px;
+    margin-right: 4px;
 }
 
 .btn-ayrintilar-chip:hover {
@@ -2887,11 +2944,18 @@ body.vega-kasa-body {
     border: 1px solid rgba(239, 68, 68, 0.6);
     color: #fca5a5;
     padding: 8px 18px;
-    border-radius: 100px;
+    border-radius: 18px;
     font-weight: 800;
     font-size: 0.82rem;
     z-index: 999999;
-    white-space: nowrap;
+    /* `nowrap` + `width: fit-content` uzun mesajı kapsülün dışına taşırıyordu:
+       metin sığmadığı halde satır kırılmadığı için kenarlığın dışına akıyordu.
+       Sarma açık, satır yüksekliği ve kelime kırma ile birlikte kapsül metnin
+       etrafında büyür. Kısa mesajlar `fit-content` sayesinde hâlâ hap
+       görünümünde kalır. */
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
     text-align: center;
     pointer-events: none;
     user-select: none;

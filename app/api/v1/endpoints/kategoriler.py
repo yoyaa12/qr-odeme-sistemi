@@ -9,5 +9,5 @@ router = APIRouter()
 
 
 @router.get("/kategoriler", response_model=List[KategoriResponse])
-async def get_kategoriler(service: KategoriService = Depends()):
+async def get_kategoriler(service: KategoriService = Depends()) -> List[KategoriResponse]:
     return service.get_kategoriler()

@@ -6,7 +6,7 @@
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Müşteri QR Menüsü</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=72">
+    <link rel="stylesheet" href="/static/css/style.css?v=75">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 
@@ -148,9 +148,9 @@
                         <div style="display:flex; align-items:center; gap:8px;">
                             <button type="button" onclick="window.changeModalQuantity(-1)"
                                 style="width:48px; height:48px; font-size:1.6rem; font-weight:800; border-radius:var(--radius-md); background:rgba(255,255,255,0.12); border:1px solid var(--border-color); color:#fff; cursor:pointer; user-select:none; touch-action:manipulation;">-</button>
-                            <input type="number" id="modalQuantity" value="1" min="1" max="20" readonly
-                                style="flex:1; text-align:center; font-size: 1.3rem; font-weight: 800; background:rgba(0,0,0,0.2); border:1px solid var(--border-color); color:#fff; cursor:default; user-select:none;"
-                                onchange="updateModalCalculatedPrice()">
+                            <input type="number" id="modalQuantity" value="1" min="1" max="20" inputmode="numeric"
+                                style="flex:1; text-align:center; font-size: 1.3rem; font-weight: 800; background:rgba(0,0,0,0.2); border:1px solid var(--border-color); color:#fff;"
+                                onchange="window.clampModalQuantity()" onblur="window.clampModalQuantity()">
                             <button type="button" onclick="window.changeModalQuantity(1)"
                                 style="width:48px; height:48px; font-size:1.6rem; font-weight:800; border-radius:var(--radius-md); background:rgba(255,255,255,0.12); border:1px solid var(--border-color); color:#fff; cursor:pointer; user-select:none; touch-action:manipulation;">+</button>
                         </div>
@@ -316,7 +316,8 @@
             <div style="font-size: 2.5rem; margin-bottom: 8px;">🔐</div>
             <h2 style="font-size: 1.3rem; margin-bottom: 8px; color: var(--primary);">Masayı Onayla</h2>
             <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 15px; line-height:1.4;">
-                İlk siparişinizi mutfağa iletebilmemiz için masadaki ekranın altında yazan <strong>6 haneli güvenlik kodunu</strong> giriniz.
+                Masanızda <strong>yeni bir adisyon</strong> açılıyor. Devam etmek için masadaki ekranın altında yazan <strong>6 haneli güvenlik kodunu</strong> giriniz.
+                <br><span style="font-size:0.8rem; opacity:0.8;">Önceki hesabınız kapandıysa bu adım bir kez daha istenir.</span>
             </p>
             
             <input type="number" id="securityPinInput" placeholder="6 haneli kod"
@@ -344,6 +345,6 @@
     <script src="/static/js/rulet.js?v=2"></script>
     <script src="/static/js/security.js?v=1"></script>
     <script src="/static/js/ui_confirm.js?v=2"></script>
-    <script src="/static/js/app.js?v=83"></script>
+    <script src="/static/js/app.js?v=90"></script>
 </body>
 </html>

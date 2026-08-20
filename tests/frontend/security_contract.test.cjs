@@ -33,6 +33,66 @@ test('security helper loads before every hardened page script', () => {
     assertHelperLoadsBefore(read('templates/garson.html'), 'waiter.js');
     assertHelperLoadsBefore(read('templates/mutfak.html'), 'kitchen.js');
     assertHelperLoadsBefore(read('templates/kasa.html'), 'kasa.js');
+    // Yönetici paneli uzun süre bu listenin dışındaydı: security.js'i hiç
+    // yüklemiyor, admin.js de escapeHtml kullanmıyordu.
+    assertHelperLoadsBefore(read('templates/admin.html'), 'admin.js');
+});
+
+test('admin panel encodes every free-text name it renders', () => {
+    const adminSource = read('static/js/admin.js');
+
+    // Kategori ve ürün adları yöneticinin serbest metin girdisidir ve tablolar
+    // `innerHTML` ile basılır. Kaçış olmadan, adın içine konan bir etiket
+    // panelde çalışırdı.
+    assert.match(adminSource, /const escapeHtml = window\.SecurityText\.escapeHtml;/);
+    assert.match(adminSource, /\$\{escapeHtml\(cat\.kategori_adi\)\}/);
+    assert.match(adminSource, /\$\{escapeHtml\(p\.urun_adi\)\}/);
+    assert.match(adminSource, /\$\{escapeHtml\(p\.kategori_adi \|\| ''\)\}/);
+    assert.match(adminSource, /\$\{escapeHtml\(u\.urun_adi\)\}/);
+    assert.match(adminSource, /\$\{escapeHtml\(u\.kategori_adi \|\| '-'\)\}/);
+
+    // Kaçışsız hiçbir ad kalmamalı.
+    assert.doesNotMatch(adminSource, /\$\{(cat|p|u)\.(kategori_adi|urun_adi)\}/);
+
+    // Düzenleme satırındaki input `value` özniteliği de bir HTML sink'idir:
+    // kaçışsız bir ad özniteliği kapatıp kendi etiketini açabilirdi.
+    assert.match(adminSource, /value="\$\{escapeHtml\(p\.urun_adi\)\}"/);
+    assert.match(adminSource, /value="\$\{escapeHtml\(p\.aciklama \|\| ''\)\}"/);
+});
+
+test('admin product edit form sends every editable field', () => {
+    const adminSource = read('static/js/admin.js');
+
+    // Panelde uzun süre yalnızca stok kutusu vardı; ad, kategori ve fiyatı
+    // düzeltmenin tek yolu veritabanına gitmekti.
+    assert.match(adminSource, /function startEditProduct\(/);
+    assert.match(adminSource, /function saveEditProduct\(/);
+    assert.match(adminSource, /function cancelEditProduct\(/);
+
+    const saveBlock = adminSource.slice(adminSource.indexOf('async function saveEditProduct('));
+    for (const field of ['urun_adi', 'kategori_id', 'fiyat', 'stok_miktari', 'aciklama']) {
+        assert.ok(saveBlock.includes(field), `saveEditProduct must send ${field}`);
+    }
+
+    // Yanıt durumu kontrol edilmeden başarı mesajı gösterilmemeli; silme
+    // düğmelerindeki eski hata tam olarak buydu.
+    assert.match(saveBlock, /if \(!res\.ok\)/);
+});
+
+test('admin panel never embeds a product name inside an onclick attribute', () => {
+    const adminSource = read('static/js/admin.js');
+
+    // Ad eskiden çift tırnaklı bir HTML özniteliğinin içindeki tek tırnaklı bir
+    // JS string literaline gömülüyordu; içindeki bir çift tırnak özniteliği
+    // kapatabiliyordu ve kaçış yalnızca tek tırnağı ele alıyordu. Ad artık
+    // `data-` özniteliğinde taşınıyor ve handler onu oradan okuyor.
+    assert.doesNotMatch(adminSource, /onclick="updateProductStock\(\$\{p\.id\},/);
+    assert.match(adminSource, /data-urun-adi="\$\{escapeHtml\(p\.urun_adi\)\}"/);
+    assert.match(adminSource, /onclick="updateProductStock\(\$\{p\.id\}\)"/);
+    assert.match(adminSource, /const urunAdi = input\.dataset\.urunAdi \|\| "";/);
+
+    // Hiçbir onclick özniteliğinin içinde JS string literali kalmamalı.
+    assert.doesNotMatch(adminSource, /onclick="[^"]*'/);
 });
 
 test('order notes and associated names are encoded at every targeted sink', () => {

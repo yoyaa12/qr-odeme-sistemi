@@ -6,5 +6,7 @@ from app.services.urun_service import UrunService
 router = APIRouter()
 
 @router.get("/urunler", response_model=List[UrunResponse])
-async def get_urunler(kategori_id: Optional[int] = None, service: UrunService = Depends()):
+async def get_urunler(
+    kategori_id: Optional[int] = None, service: UrunService = Depends()
+) -> List[UrunResponse]:
     return service.get_urunler(kategori_id)

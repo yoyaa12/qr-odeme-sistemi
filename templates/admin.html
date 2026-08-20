@@ -6,7 +6,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Yönetici Paneli</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=999">
+    <link rel="stylesheet" href="/static/css/style.css?v=1002">
     <style>
         html,
         body {
@@ -141,11 +141,58 @@
             </div>
         </div>
 
+        <!-- SECTION 3: MENÜDEN KALDIRILANLAR -->
+        <!--
+            Kaldırma işlemi veritabanından silmez, kaydı pasifleştirir
+            (aktif_mi = 0). Böylece geçmiş adisyonlardaki kalemler hangi ürüne
+            ait olduğunu kaybetmez. Bu bölüm o kayıtları görünür kılar ve
+            geri getirmeyi mümkün kılar.
+        -->
+        <div id="removedSection"
+            style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 30px; display: none;">
+            <h3 style="margin-bottom: 6px;">3. Menüden Kaldırılanlar</h3>
+            <p style="opacity: 0.7; font-size: 0.85rem; margin-bottom: 16px;">
+                Bu kayıtlar silinmedi, yalnızca menüden çıkarıldı. Sipariş geçmişleri
+                korunuyor ve istediğiniz zaman geri getirebilirsiniz.
+            </p>
+
+            <div id="removedCategoriesWrap" style="margin-bottom: 20px; display: none;">
+                <h4 style="margin-bottom: 8px; font-size: 0.95rem;">Kategoriler</h4>
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Kategori Adı</th>
+                            <th>İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody id="removedCategoriesTbody"></tbody>
+                </table>
+            </div>
+
+            <div id="removedProductsWrap" style="display: none;">
+                <h4 style="margin-bottom: 8px; font-size: 0.95rem;">Ürünler</h4>
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Ürün Adı</th>
+                            <th>Kategori</th>
+                            <th>Fiyat</th>
+                            <th>İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody id="removedProductsTbody"></tbody>
+                </table>
+            </div>
+        </div>
+
     </main>
 
+    <script src="/static/js/security.js?v=1"></script>
     <script src="/static/js/ui_confirm.js?v=2"></script>
-    <script src="/static/js/staff_auth.js?v=3"></script>
-    <script src="/static/js/admin.js?v=2"></script>
+    <script src="/static/js/staff_auth.js?v=4"></script>
+    <script src="/static/js/admin.js?v=6"></script>
 </body>
 
 </html>

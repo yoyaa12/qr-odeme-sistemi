@@ -20,7 +20,7 @@ def verify_garson_pin(
     data: GarsonPinVerifyModel,
     request: Request,
     service: AuthService = Depends(),
-):
+) -> GarsonPinResponse:
     client_host = request.client.host if request.client else "unknown"
     result = service.verify_garson_pin(data, client_host)
     garson = KullaniciResponse(
@@ -40,7 +40,7 @@ def verify_garson_pin(
     response_model=List[KullaniciResponse],
     dependencies=[Depends(waiter_or_admin)],
 )
-async def get_garsonlar(service: AuthService = Depends()):
+async def get_garsonlar(service: AuthService = Depends()) -> List[KullaniciResponse]:
     return service.get_garsonlar()
 
 @router.post(
@@ -48,6 +48,7 @@ async def get_garsonlar(service: AuthService = Depends()):
     response_model=GenelBasariliResponse,
     dependencies=[Depends(waiter_or_admin)],
 )
-async def ban_device(data: BanDeviceModel, service: AuthService = Depends()):
-    result = service.ban_device(data.device_id)
-    return GenelBasariliResponse(**result)
+async def ban_device(
+    data: BanDeviceModel, service: AuthService = Depends()
+) -> GenelBasariliResponse:
+    return service.ban_device(data.device_id)
